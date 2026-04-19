@@ -513,9 +513,13 @@ jobs:
           set -eu
           STAGE="hostid-${VERSION}-${TARGET}"
           SHA512=$(sha512sum "dist/${STAGE}.tar.gz" | awk '{print $1}')
+          # abuild's pkgver rejects semver `-rcN` hyphen pre-release
+          # suffixes; convert to the `_rcN` form it accepts.
+          APK_PKGVER="${VERSION//-/_}"
           mkdir -p build/hostid
           cp "dist/${STAGE}.tar.gz" "build/hostid/"
           sed -e "s|@@VERSION@@|${VERSION}|g" \
+              -e "s|@@APK_PKGVER@@|${APK_PKGVER}|g" \
               -e "s|@@TARGET@@|${TARGET}|g" \
               -e "s|@@ARCH@@|${APK_ARCH}|g" \
               -e "s|@@SHA512@@|${SHA512}|g" \

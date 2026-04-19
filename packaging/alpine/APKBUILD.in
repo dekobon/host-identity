@@ -1,14 +1,19 @@
 # Maintainer: Elijah Zupancic <e.zupancic@f5.com>
 pkgname=hostid
-pkgver=@@VERSION@@
+# abuild rejects semver pre-release hyphens (e.g. 1.0.0-rc1) with
+# "not a valid version" and expects the underscore form (1.0.0_rc1).
+# `@@APK_PKGVER@@` is `@@VERSION@@` with `-` replaced by `_` by the
+# release workflow; the upstream tag/filename still uses the hyphen
+# form via `@@VERSION@@`.
+pkgver=@@APK_PKGVER@@
 pkgrel=0
 pkgdesc="Stable host UUID across platforms, clouds, and Kubernetes"
 url="https://github.com/dekobon/host-identity"
 arch="@@ARCH@@"
 license="Apache-2.0 OR MIT"
-source="hostid-$pkgver-@@TARGET@@.tar.gz::https://github.com/dekobon/host-identity/releases/download/v$pkgver/hostid-$pkgver-@@TARGET@@.tar.gz"
+source="hostid-@@VERSION@@-@@TARGET@@.tar.gz::https://github.com/dekobon/host-identity/releases/download/v@@VERSION@@/hostid-@@VERSION@@-@@TARGET@@.tar.gz"
 options="!check"
-builddir="$srcdir/hostid-$pkgver-@@TARGET@@"
+builddir="$srcdir/hostid-@@VERSION@@-@@TARGET@@"
 
 package() {
 	install -Dm755 "$builddir/hostid" "$pkgdir/usr/bin/hostid"
@@ -21,4 +26,4 @@ package() {
 	install -Dm644 "$builddir/THIRD-PARTY-LICENSES.md" "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-LICENSES.md"
 }
 
-sha512sums="@@SHA512@@  hostid-$pkgver-@@TARGET@@.tar.gz"
+sha512sums="@@SHA512@@  hostid-@@VERSION@@-@@TARGET@@.tar.gz"
