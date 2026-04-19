@@ -71,6 +71,16 @@ jobs:
             echo "::error::Tag '$TAG' is not a valid semver release tag"
             exit 1
           fi
+          # abuild's pkgver grammar accepts only `_<alpha|beta|pre|rc|cvs|svn|git|hg|p><digits>`
+          # with no dots in the suffix. The render step maps the semver
+          # hyphen to abuild's underscore, but `1.0.0-rc.2` would still
+          # emit `1.0.0_rc.2` which apk rejects mid-pipeline. Fail here
+          # instead, so tag-format mistakes cost 30 s in preflight rather
+          # than 2+ min across four apk arches.
+          if [[ "$TAG" == *-*.* ]]; then
+            echo "::error::Pre-release suffix in '$TAG' contains a dot. abuild does not accept dotted suffixes (e.g. 'rc.2'); use 'rc2' instead."
+            exit 1
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
@@ -513,8 +523,7 @@ jobs:
           set -eu
           STAGE="hostid-${VERSION}-${TARGET}"
           SHA512=$(sha512sum "dist/${STAGE}.tar.gz" | awk '{print $1}')
-          # abuild's pkgver rejects semver `-rcN` hyphen pre-release
-          # suffixes; convert to the `_rcN` form it accepts.
+          # Hyphen→underscore for abuild pkgver; see APKBUILD.in for rationale.
           APK_PKGVER="${VERSION//-/_}"
           mkdir -p build/hostid
           cp "dist/${STAGE}.tar.gz" "build/hostid/"

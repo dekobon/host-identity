@@ -276,8 +276,16 @@ smoke tests are the slowest stages).
 
 ## Cutting a pre-release
 
-Pre-release tags match `vX.Y.Z-<suffix>` (e.g. `v0.2.0-rc.1`,
-`v0.2.0-beta.2`). The preflight classifier sets `prerelease=true`,
+Pre-release tags match `vX.Y.Z-<suffix>` where `<suffix>` is
+`[A-Za-z][0-9]*` — e.g. `v0.2.0-rc1`, `v0.2.0-beta2`,
+`v0.2.0-alpha3`. **Do not use dotted forms like `v0.2.0-rc.1`**:
+Alpine's abuild grammar rejects dots in the pre-release suffix, and
+the preflight job fails fast with a clear message if you try. The
+hyphen is also translated to an underscore for the apk `pkgver`
+automatically — you don't need to do anything manual on the
+packaging side.
+
+The preflight classifier sets `prerelease=true` for any suffix,
 which:
 
 - Marks the GitHub Release as a pre-release.
