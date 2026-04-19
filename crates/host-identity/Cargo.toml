@@ -1,0 +1,55 @@
+[package]
+name = "host-identity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Stable, collision-resistant host identity resolution across platforms, container runtimes, cloud providers, and Kubernetes"
+readme = "README.md"
+keywords = ["host-id", "machine-id", "identity", "uuid", "container"]
+categories = ["os", "os::unix-apis", "os::windows-apis"]
+
+[lib]
+name = "host_identity"
+
+[features]
+default = ["container"]
+# Linux container-ID extraction from `/proc/self/mountinfo`. No deps.
+container = []
+# Internal: enables the `HttpTransport` trait, the `CloudMetadata` /
+# `CloudEndpoint` extension point, and pulls in the `http` crate. Don't
+# enable directly — turn on one of the cloud features below.
+_transport = ["dep:http"]
+# AWS EC2 instance ID via IMDSv2. Requires consumer-supplied HTTP client.
+aws = ["_transport"]
+# GCP Compute Engine instance ID.
+gcp = ["_transport"]
+# Azure VM UUID via the Azure Instance Metadata Service.
+azure = ["_transport"]
+# DigitalOcean Droplet ID.
+digitalocean = ["_transport"]
+# Hetzner Cloud server ID.
+hetzner = ["_transport"]
+# Oracle Cloud Infrastructure instance OCID (IMDS v2).
+oci = ["_transport"]
+# Kubernetes pod UID, service-account namespace, and downward-API
+# projected files. No deps.
+k8s = []
+
+[dependencies]
+thiserror = "2"
+uuid = { version = "1", features = ["v3", "v5"] }
+log = "0.4"
+http = { version = "1", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.5"
+windows-result = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+serial_test = "3"
+
+[lints]
+workspace = true

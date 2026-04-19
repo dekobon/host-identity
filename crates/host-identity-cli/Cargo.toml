@@ -1,0 +1,51 @@
+[package]
+name = "host-identity-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line interface for host-identity: print a stable host UUID across platforms, clouds, and Kubernetes"
+readme = "README.md"
+keywords = ["host-id", "machine-id", "identity", "uuid", "cli"]
+categories = ["command-line-utilities"]
+
+[lib]
+name = "host_identity_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hostid"
+path = "src/main.rs"
+
+[features]
+# Library-mirrored defaults. The CLI exposes `--network` at runtime to
+# opt into cloud and Kubernetes sources; the feature set below controls
+# which sources are compiled in.
+default = ["container", "network"]
+container = ["host-identity/container"]
+# Pull in an HTTP client and every cloud + k8s source at build time.
+# Cloud sources stay dormant at runtime until the user passes `--network`.
+network = [
+    "dep:ureq",
+    "dep:http",
+    "host-identity/aws",
+    "host-identity/gcp",
+    "host-identity/azure",
+    "host-identity/digitalocean",
+    "host-identity/hetzner",
+    "host-identity/oci",
+    "host-identity/k8s",
+]
+
+[dependencies]
+host-identity = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+ureq = { version = "2", optional = true }
+http = { version = "1", optional = true }
+
+[lints]
+workspace = true
