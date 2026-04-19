@@ -454,6 +454,11 @@ winget manifest. See
 [`packaging/README.md`](../packaging/README.md) for the template
 files each package format consumes.
 
+For the full walkthrough — prerequisites, pre-release checklist,
+rehearsing, monitoring, post-release verification, and recovery —
+see [`docs/cutting-a-release.md`](cutting-a-release.md). The summary
+below is the quick reference.
+
 ### Cutting a release
 
 1. Land every change for the release on `main`.
