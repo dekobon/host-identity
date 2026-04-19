@@ -34,12 +34,21 @@ One push of a `v*` tag runs this end-to-end:
    artefact + `SHA256SUMS` + `SHA256SUMS.minisig`, and (for non
    pre-releases) pushes the Homebrew formula, Scoop manifest, and
    winget PR.
-7. **verify** — downloads the published `musl` tarball back out of
+7. **publish-crates** — for non pre-releases, runs `cargo publish` for
+   `host-identity` (library) then `host-identity-cli` (binary) in
+   order. Skips idempotently if the version is already on crates.io
+   (so `workflow_dispatch` re-runs on the same tag don't error out on
+   the duplicate upload). The preflight stage also runs `cargo publish
+   --dry-run` for the library on every release — pre-releases
+   included — so packaging errors surface before any external step.
+8. **verify** — downloads the published `musl` tarball back out of
    the release, verifies the minisign signature, checksum, and SLSA
    provenance.
 
-If any stage fails, nothing downstream runs. `publish` is the only
-job that mutates anything outside this repo.
+If any stage fails, nothing downstream runs. `publish` and
+`publish-crates` are the only jobs that mutate anything outside this
+repo; they run in parallel so a crates.io failure does not block the
+GitHub Release's `verify` step (and vice versa).
 
 ## Prerequisites (one-time setup)
 
@@ -59,6 +68,7 @@ Configure these under **Settings → Secrets and variables → Actions**:
 | `HOMEBREW_TAP_TOKEN`     | Fine-grained PAT with write access to `dekobon/homebrew-host-identity` |
 | `SCOOP_BUCKET_TOKEN`     | Fine-grained PAT with write access to `dekobon/scoop-bucket`       |
 | `WINGET_TOKEN`           | PAT used by `winget-releaser` to open the microsoft/winget-pkgs PR |
+| `CARGO_REGISTRY_TOKEN`   | crates.io API token scoped to `publish-new` + `publish-update` for `host-identity` and `host-identity-cli`. The workflow maps the secret to the env var of the same name, which `cargo publish` reads natively. |
 
 If `HOMEBREW_TAP_TOKEN` or `SCOOP_BUCKET_TOKEN` is missing, those
 steps log a message and skip without failing the release. If
@@ -66,6 +76,12 @@ steps log a message and skip without failing the release. If
 `winget-releaser` action errors out when its token input is empty.
 Either configure all three, or remove the winget step for
 releases you don't plan to ship to winget.
+
+If `CARGO_REGISTRY_TOKEN` is missing, the `publish-crates` job **fails**
+at the first `cargo publish` call with a "no upload token" error —
+crates.io publishes are the one step we refuse to silently skip.
+Configure it or remove the job for release lines you don't plan to
+ship to crates.io.
 
 ### Minisign key
 
@@ -90,8 +106,72 @@ Releases (for stable versions) push to:
 - `dekobon/homebrew-host-identity` — Homebrew tap
 - `dekobon/scoop-bucket` — Scoop bucket
 - `microsoft/winget-pkgs` — winget manifests (via PR)
+- `crates.io` — `host-identity` (library) and `host-identity-cli`
+  (binary) via `cargo publish`
 
 Both tap and bucket repos must exist and accept the configured PAT.
+
+### crates.io ownership
+
+Before the first automated publish:
+
+1. **Check name availability.** Open
+   `https://crates.io/crates/host-identity` and
+   `https://crates.io/crates/host-identity-cli`. If either returns a
+   crate owned by someone else, pick a different name and update
+   `name = "..."` in the crate `Cargo.toml` before tagging — the
+   `cargo owner --add` step below only works on crates you already
+   own.
+2. **Publish each crate manually once to claim the name.** `cargo
+   owner --add` requires the crate to exist, so the owner-management
+   step comes *after* the first publish, not before. From a clean
+   checkout at the release-prep commit:
+
+   ```bash
+   cargo login <your-token>
+   cargo publish -p host-identity --locked
+   cargo publish -p host-identity-cli --locked
+   ```
+
+   After that, the `publish-crates` job takes over for every
+   subsequent release (and is a no-op for this same version because
+   of the idempotency check).
+3. **Add additional owners.** `cargo owner --add <github-handle>
+   host-identity` (and for `host-identity-cli`). A single-owner
+   crate is one forgotten password away from being orphaned. If you
+   have a GitHub team, use `github:<org>:<team>`.
+4. **Mint a scoped API token for CI.** On
+   [crates.io/settings/tokens](https://crates.io/settings/tokens),
+   create a token with scopes `publish-new` and `publish-update`
+   restricted to the two crates. Avoid broad `*` tokens — the
+   release runner only needs to publish these two crates.
+5. **Paste the token into the `CARGO_REGISTRY_TOKEN` repo secret.**
+   cargo reads this env var natively, so the workflow doesn't need
+   an explicit `--token` flag. Never commit it or paste it into
+   workflow files.
+
+The `publish-crates` job publishes `host-identity` first, then
+`host-identity-cli`. The pinned 1.86.0 toolchain's `cargo publish`
+waits for the new version to appear in the sparse index before
+returning, so the CLI step can resolve its `host-identity`
+dependency from the registry without an explicit sleep. The
+preflight stage runs `cargo publish --dry-run` for the library on
+every release, so metadata errors (missing description/license,
+path-dep version drift) fail the release before any external step
+fires. The CLI is not dry-run in preflight because its
+`host-identity` dependency is not yet on crates.io on a first
+publish.
+
+`publish-crates` runs in parallel with `publish` (tap/bucket/winget).
+One failure mode to be aware of: if the external package-manager
+pushes succeed but the crates.io publish fails (token issue,
+registry outage), `brew install hostid` will get the new version
+while `cargo install host-identity-cli` will not until the job is
+re-run. Re-running on the same tag is safe — both jobs are
+idempotent — but noticing the gap is on you. The alternative would
+be serializing the jobs so crates.io must succeed before
+tap/bucket/winget push; that turns a crates.io outage into a full
+release stall, which we've judged to be the worse failure mode.
 
 ## Bumping the version
 
@@ -130,6 +210,12 @@ cargo metadata --format-version 1 --no-deps \
       print({p['name']: p['version'] for p in d['packages']})"
 # Expect both host-identity and host-identity-cli at the target version.
 ```
+
+The `cargo update --workspace` step is **mandatory**, not
+nice-to-have: `publish-crates` runs `cargo publish --locked`, which
+fails late in the release pipeline if `Cargo.lock` drifts from what
+the workspace resolves to. Commit the refreshed lockfile alongside
+the `Cargo.toml` edits.
 
 Pick the version using semver:
 
@@ -199,7 +285,9 @@ Pre-release tags match `vX.Y.Z-<suffix>` (e.g. `v0.2.0-rc.1`,
 which:
 
 - Marks the GitHub Release as a pre-release.
-- Skips the Homebrew tap, Scoop bucket, and winget PR steps.
+- Skips the Homebrew tap, Scoop bucket, winget PR, and crates.io
+  publish steps. crates.io uploads are irrevocable, so rehearsal
+  tags like `v0.0.0-test1` must not reach the registry.
 
 Use this for any version that should not reach package managers.
 Signed artefacts, SBOMs, and SLSA provenance still publish normally,
