@@ -147,6 +147,11 @@ mod tests {
                         Err(_) => return,
                     }
                 };
+                // On BSD-derived platforms (macOS) the accepted socket
+                // inherits O_NONBLOCK from the listener; on Linux it does
+                // not. Force blocking so set_{read,write}_timeout actually
+                // govern the exchange and ureq sees a normal stream.
+                let _ = stream.set_nonblocking(false);
                 let _ = stream.set_read_timeout(Some(MOCK_SERVER_DEADLINE));
                 let _ = stream.set_write_timeout(Some(MOCK_SERVER_DEADLINE));
                 drain_request(&mut stream);
