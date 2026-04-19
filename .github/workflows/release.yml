@@ -72,7 +72,7 @@ jobs:
 
       # Always check out the tag ref, not the event SHA. Critical for
       # workflow_dispatch where github.sha points at the branch HEAD.
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ steps.tag.outputs.tag }}
@@ -157,7 +157,7 @@ jobs:
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "ref=$TAG" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-notes
           path: release-notes.md
@@ -182,7 +182,7 @@ jobs:
           - { target: x86_64-pc-windows-msvc,     runner: windows-latest, cross: false }
           - { target: aarch64-pc-windows-msvc,    runner: windows-latest, cross: false }
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -306,7 +306,7 @@ jobs:
       # Archive (primary artefact). Uploading from a single flat dir
       # ensures the downloaded layout at Stage 4 is predictable:
       # merge-multiple leaves every file at the top of `release/`.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: archive-${{ matrix.target }}
           path: |
@@ -314,7 +314,7 @@ jobs:
             dist/*.zip
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: debug-${{ matrix.target }}
           path: dist/debug/
@@ -332,7 +332,7 @@ jobs:
           - { target: x86_64-unknown-linux-gnu,  deb_arch: amd64 }
           - { target: aarch64-unknown-linux-gnu, deb_arch: arm64 }
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -346,7 +346,7 @@ jobs:
         with:
           tool: cargo-deb@${{ env.CARGO_DEB_VERSION }}
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: archive-${{ matrix.target }}
           path: dist
@@ -380,7 +380,7 @@ jobs:
             --target "$TARGET" \
             --output "out/"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: deb-${{ matrix.deb_arch }}
           path: out/*.deb
@@ -397,7 +397,7 @@ jobs:
           - { target: x86_64-unknown-linux-gnu,  rpm_arch: x86_64 }
           - { target: aarch64-unknown-linux-gnu, rpm_arch: aarch64 }
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -411,7 +411,7 @@ jobs:
         with:
           tool: cargo-generate-rpm@${{ env.CARGO_GENERATE_RPM_VERSION }}
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: archive-${{ matrix.target }}
           path: dist
@@ -449,7 +449,7 @@ jobs:
             --payload-compress zstd \
             --output "out/"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rpm-${{ matrix.rpm_arch }}
           path: out/*.rpm
@@ -469,12 +469,12 @@ jobs:
           - { target: x86_64-unknown-linux-musl,  apk_arch: x86_64 }
           - { target: aarch64-unknown-linux-musl, apk_arch: aarch64 }
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: archive-${{ matrix.target }}
           path: dist
@@ -543,7 +543,7 @@ jobs:
               cp /home/builder/hostid/APKBUILD /out/APKBUILD.${APK_ARCH}
             '
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: apk-${{ matrix.apk_arch }}
           path: out/apk/**
@@ -554,12 +554,12 @@ jobs:
     needs: [preflight, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: archive-x86_64-unknown-freebsd
           path: dist
@@ -602,7 +602,7 @@ jobs:
               stage/usr/local/share/licenses/hostid/LICENSE-MIT
             pkg create -M +MANIFEST -r stage -o out
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: freebsd-pkg
           path: out/**
@@ -623,7 +623,7 @@ jobs:
     steps:
       - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         if: matrix.arch == 'arm64'
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: deb-${{ matrix.arch }}
           path: dist
@@ -655,7 +655,7 @@ jobs:
     steps:
       - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         if: matrix.arch == 'aarch64'
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: rpm-${{ matrix.arch }}
           path: dist
@@ -690,7 +690,7 @@ jobs:
     steps:
       - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         if: matrix.arch == 'aarch64'
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: apk-${{ matrix.arch }}
           path: dist
@@ -714,7 +714,7 @@ jobs:
     needs: [preflight, package-freebsd]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: freebsd-pkg
           path: dist
@@ -741,7 +741,7 @@ jobs:
           - { runner: macos-13,     target: x86_64-apple-darwin }
           - { runner: macos-latest, target: aarch64-apple-darwin }
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: archive-${{ matrix.target }}
           path: dist
@@ -761,7 +761,7 @@ jobs:
     needs: [preflight, build]
     runs-on: windows-latest
     steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: archive-x86_64-pc-windows-msvc
           path: dist
@@ -805,13 +805,13 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
 
       - name: Gather all artefacts
-        uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: "*"
           path: incoming
@@ -875,7 +875,7 @@ jobs:
             -m release/SHA256SUMS -x release/SHA256SUMS.minisig
 
       - name: SLSA build provenance
-        uses: actions/attest-build-provenance@c4fbc648846ca6f503a13a2281a5e7b98aa57202 # v2.2.3
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: |
             release/*.tar.gz
@@ -885,7 +885,7 @@ jobs:
             release/*.apk
             release/*.pkg
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-bundle
           path: release/
@@ -899,15 +899,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-bundle
           path: release
-      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-notes
           path: .
@@ -1061,7 +1061,7 @@ jobs:
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -1103,7 +1103,7 @@ jobs:
       contents: read
       attestations: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
