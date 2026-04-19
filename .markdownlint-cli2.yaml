@@ -1,0 +1,15 @@
+config:
+  MD013:
+    line_length: 120
+    tables: false
+    code_blocks: false
+    headings: false
+  MD060: false
+
+globs:
+  - "**/*.md"
+
+ignores:
+  - "target/**"
+  - "node_modules/**"
+  - ".claude/**"

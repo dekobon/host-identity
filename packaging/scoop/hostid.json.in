@@ -1,0 +1,30 @@
+{
+  "version": "@@VERSION@@",
+  "description": "Stable host UUID across platforms, clouds, and Kubernetes",
+  "homepage": "https://github.com/dekobon/host-identity",
+  "license": "Apache-2.0 OR MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/dekobon/host-identity/releases/download/v@@VERSION@@/hostid-@@VERSION@@-x86_64-pc-windows-msvc.zip",
+      "hash": "@@SHA256_X86_64@@"
+    },
+    "arm64": {
+      "url": "https://github.com/dekobon/host-identity/releases/download/v@@VERSION@@/hostid-@@VERSION@@-aarch64-pc-windows-msvc.zip",
+      "hash": "@@SHA256_AARCH64@@"
+    }
+  },
+  "bin": "hostid.exe",
+  "checkver": {
+    "github": "https://github.com/dekobon/host-identity"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/dekobon/host-identity/releases/download/v$version/hostid-$version-x86_64-pc-windows-msvc.zip"
+      },
+      "arm64": {
+        "url": "https://github.com/dekobon/host-identity/releases/download/v$version/hostid-$version-aarch64-pc-windows-msvc.zip"
+      }
+    }
+  }
+}

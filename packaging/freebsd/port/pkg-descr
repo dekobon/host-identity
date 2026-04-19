@@ -1,0 +1,6 @@
+Print a stable host UUID across platforms, clouds, and Kubernetes.
+
+host-identity resolves a deterministic UUID for a machine by walking
+a set of sources (machine-id, DMI product UUID, cloud metadata,
+container identifiers, Kubernetes node/pod UIDs) and returning the
+first one that proves the host's identity.

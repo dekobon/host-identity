@@ -1,0 +1,52 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH HOSTID-RESOLVE 1  "hostid 0.1.0" "hostid Manual"
+.SH NAME
+hostid\-resolve \- Resolve the host identity and print it (default)
+.SH SYNOPSIS
+\fBhostid\-resolve\fR [\fB\-\-format\fR] [\fB\-\-wrap\fR] [\fB\-\-sources\fR] [\fB\-\-network\fR] [\fB\-\-network\-timeout\-ms\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH DESCRIPTION
+Resolve the host identity and print it (default)
+.SH OPTIONS
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR [default: plain]
+Output format
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+plain
+.IP \(bu 2
+summary
+.IP \(bu 2
+json
+.RE
+.TP
+\fB\-\-wrap\fR \fI<WRAP>\fR [default: v5]
+UUID wrap strategy
+.br
+
+.br
+\fIPossible values:\fR
+.RS 14
+.IP \(bu 2
+v5
+.IP \(bu 2
+v3
+.IP \(bu 2
+passthrough
+.RE
+.TP
+\fB\-\-sources\fR \fI<SOURCES>\fR
+Comma\-separated source identifiers to build a custom chain (see `hostid sources`). Combine with `\-\-network` to include cloud\-metadata sources in the chain
+.TP
+\fB\-\-network\fR
+Enable cloud\-metadata and Kubernetes sources by supplying an HTTP transport. Without `\-\-sources` this adds them to the default chain; with `\-\-sources` it lets identifiers like `aws\-imds` resolve. Requires the binary to be built with the `network` feature
+.TP
+\fB\-\-network\-timeout\-ms\fR \fI<MS>\fR
+Per\-request timeout, in milliseconds, for cloud\-metadata and Kubernetes HTTP probes. Only meaningful with `\-\-network`. Off\-cloud hosts never answer these endpoints, so this directly bounds the time spent waiting before falling through to the next source
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help

@@ -1,0 +1,97 @@
+[package]
+name = "host-identity-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line interface for host-identity: print a stable host UUID across platforms, clouds, and Kubernetes"
+readme = "README.md"
+keywords = ["host-id", "machine-id", "identity", "uuid", "cli"]
+categories = ["command-line-utilities"]
+
+[lib]
+name = "host_identity_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hostid"
+path = "src/main.rs"
+
+[features]
+# Library-mirrored defaults. The CLI exposes `--network` at runtime to
+# opt into cloud and Kubernetes sources; the feature set below controls
+# which sources are compiled in.
+default = ["container", "network"]
+container = ["host-identity/container"]
+# Pull in an HTTP client and every cloud + k8s source at build time.
+# Cloud sources stay dormant at runtime until the user passes `--network`.
+network = [
+    "dep:ureq",
+    "dep:http",
+    "host-identity/aws",
+    "host-identity/gcp",
+    "host-identity/azure",
+    "host-identity/digitalocean",
+    "host-identity/hetzner",
+    "host-identity/oci",
+    "host-identity/k8s",
+]
+
+[dependencies]
+host-identity = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+ureq = { version = "2", optional = true }
+http = { version = "1", optional = true }
+
+[lints]
+workspace = true
+
+# Debian/Ubuntu packaging — consumed by `cargo deb` in release CI.
+# Paths are relative to the workspace root because release CI invokes
+# cargo-deb with `--no-build` against a staged layout that mirrors the
+# workspace (binary under target/<triple>/release/, man pages under
+# man/).
+[package.metadata.deb]
+name = "hostid"
+section = "utils"
+priority = "optional"
+extended-description = """\
+Print a stable host UUID across platforms, clouds, and Kubernetes.
+
+host-identity resolves a deterministic UUID for a machine by walking
+a set of sources (machine-id, DMI product UUID, cloud metadata,
+container identifiers, Kubernetes node/pod UIDs) and returning the
+first one that proves the host's identity.\
+"""
+assets = [
+    ["target/release/hostid", "usr/bin/", "755"],
+    ["../../man/hostid.1", "usr/share/man/man1/", "644"],
+    ["../../man/hostid-audit.1", "usr/share/man/man1/", "644"],
+    ["../../man/hostid-resolve.1", "usr/share/man/man1/", "644"],
+    ["../../man/hostid-sources.1", "usr/share/man/man1/", "644"],
+    ["../../README.md", "usr/share/doc/hostid/README.md", "644"],
+    ["../../LICENSE-APACHE", "usr/share/doc/hostid/LICENSE-APACHE", "644"],
+    ["../../LICENSE-MIT", "usr/share/doc/hostid/LICENSE-MIT", "644"],
+]
+
+# RHEL/Rocky/Fedora/Amazon Linux packaging — consumed by
+# `cargo generate-rpm` in release CI.
+[package.metadata.generate-rpm]
+name = "hostid"
+summary = "Stable host UUID across platforms, clouds, and Kubernetes"
+license = "Apache-2.0 OR MIT"
+assets = [
+    { source = "target/release/hostid", dest = "/usr/bin/hostid", mode = "755" },
+    { source = "man/hostid.1", dest = "/usr/share/man/man1/hostid.1", mode = "644", doc = true },
+    { source = "man/hostid-audit.1", dest = "/usr/share/man/man1/hostid-audit.1", mode = "644", doc = true },
+    { source = "man/hostid-resolve.1", dest = "/usr/share/man/man1/hostid-resolve.1", mode = "644", doc = true },
+    { source = "man/hostid-sources.1", dest = "/usr/share/man/man1/hostid-sources.1", mode = "644", doc = true },
+    { source = "README.md", dest = "/usr/share/doc/hostid/README.md", mode = "644", doc = true },
+    { source = "LICENSE-APACHE", dest = "/usr/share/doc/hostid/LICENSE-APACHE", mode = "644", doc = true },
+    { source = "LICENSE-MIT", dest = "/usr/share/doc/hostid/LICENSE-MIT", mode = "644", doc = true },
+]
+auto-req = "disabled"

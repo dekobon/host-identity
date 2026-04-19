@@ -1,0 +1,1067 @@
+name: Release
+
+# Triggered by `v*` tags. `workflow_dispatch` is available for rehearsal
+# against an existing tag; the pre-release gate keeps tap/bucket/winget
+# updates from leaking during rehearsal.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (e.g. v0.1.0 or v0.0.0-test1)"
+        required: true
+        type: string
+
+# Never cancel an in-flight release — external publishes must be atomic.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Default to read-only; jobs escalate explicitly.
+permissions:
+  contents: read
+
+# All `uses:` below are pinned to commit SHAs to eliminate supply-chain
+# risk from action-release spoofing. Bump via Dependabot (see
+# .github/dependabot.yml), which rewrites the SHA + version comment.
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUSTFLAGS: "-D warnings"
+  # Pinned toolchain for deterministic release builds. Separate from the
+  # library MSRV (enforced in ci.yml).
+  RUST_TOOLCHAIN: "1.86.0"
+  CROSS_VERSION: "0.2.5"
+  CARGO_DEB_VERSION: "2.7.0"
+  CARGO_GENERATE_RPM_VERSION: "0.15.0"
+  CARGO_CYCLONEDX_VERSION: "0.5.7"
+
+jobs:
+  # ─── Stage 0 — preflight gate ────────────────────────────────────────
+  preflight:
+    name: preflight
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.classify.outputs.version }}
+      tag: ${{ steps.classify.outputs.tag }}
+      prerelease: ${{ steps.classify.outputs.prerelease }}
+      ref: ${{ steps.classify.outputs.ref }}
+    steps:
+      - name: Resolve tag
+        id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -eu
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="$REF_NAME"
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not a valid semver release tag"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      # Always check out the tag ref, not the event SHA. Critical for
+      # workflow_dispatch where github.sha points at the branch HEAD.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable tip
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Verify tag ↔ Cargo.toml version parity
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -eu
+          CARGO_VERSION=$(cargo metadata --format-version 1 --no-deps \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(p for p in d['packages'] if p['name']=='host-identity-cli')['version'])")
+          if [[ "$CARGO_VERSION" != "$VERSION" ]]; then
+            echo "::error::Tag version ($VERSION) != host-identity-cli Cargo.toml version ($CARGO_VERSION)"
+            exit 1
+          fi
+
+      - name: Verify minisign.pub is not the placeholder
+        run: |
+          set -eu
+          # Anchored match against the exact committed placeholder comment.
+          # A real public key file's `untrusted comment:` line won't start with this.
+          if grep -q '^untrusted comment: placeholder' minisign.pub; then
+            echo "::error::minisign.pub is still the committed placeholder. Rotate the key before tagging a release."
+            exit 1
+          fi
+
+      - name: Verify man pages are fresh
+        run: |
+          set -eu
+          cargo xtask
+          if ! git diff --exit-code -- man/; then
+            echo "::error::Committed man pages drift from clap schema. Run 'cargo xtask' locally and commit."
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -eu
+          CHANGELOG=crates/host-identity/CHANGELOG.md
+          if ! grep -Fq "## [${VERSION}]" "$CHANGELOG"; then
+            echo "::error::CHANGELOG.md has no section for [${VERSION}]"
+            exit 1
+          fi
+          # Fixed-string match on the section header — avoids treating
+          # dots in the version as regex wildcards.
+          awk -v header="## [${VERSION}]" '
+            index($0, header) == 1 { capture=1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' "$CHANGELOG" > release-notes.md
+          if [[ ! -s release-notes.md ]]; then
+            echo "::error::Extracted release notes are empty"
+            exit 1
+          fi
+
+      - name: Classify release
+        id: classify
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -eu
+          PRERELEASE=false
+          if [[ "$TAG" == *-* ]]; then PRERELEASE=true; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  # ─── Stage 1 — build matrix (per OS / arch) ──────────────────────────
+  build:
+    name: build ${{ matrix.target }}
+    needs: preflight
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu,   runner: ubuntu-22.04,   cross: false }
+          - { target: aarch64-unknown-linux-gnu,  runner: ubuntu-22.04,   cross: true  }
+          - { target: x86_64-unknown-linux-musl,  runner: ubuntu-latest,  cross: true  }
+          - { target: aarch64-unknown-linux-musl, runner: ubuntu-latest,  cross: true  }
+          - { target: x86_64-unknown-freebsd,     runner: ubuntu-latest,  cross: true  }
+          - { target: x86_64-apple-darwin,        runner: macos-13,       cross: false }
+          - { target: aarch64-apple-darwin,       runner: macos-latest,   cross: false }
+          - { target: x86_64-pc-windows-msvc,     runner: windows-latest, cross: false }
+          - { target: aarch64-pc-windows-msvc,    runner: windows-latest, cross: false }
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable tip
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (Linux / FreeBSD cross-compile)
+        if: matrix.cross
+        uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+        with:
+          tool: cross@${{ env.CROSS_VERSION }}
+
+      - name: Regenerate man pages
+        shell: bash
+        run: cargo xtask
+
+      - name: Build release binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          USE_CROSS: ${{ matrix.cross }}
+        run: |
+          set -eu
+          if [[ "$USE_CROSS" == "true" ]]; then
+            cross build --release --locked --target "$TARGET" -p host-identity-cli
+          else
+            cargo build --release --locked --target "$TARGET" -p host-identity-cli
+          fi
+
+      - name: Stage archive contents
+        shell: bash
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          STAGE="hostid-${VERSION}-${TARGET}"
+          mkdir -p "dist/${STAGE}/man"
+          if [[ "$TARGET" == *windows* ]]; then
+            cp "target/${TARGET}/release/hostid.exe" "dist/${STAGE}/hostid.exe"
+          else
+            cp "target/${TARGET}/release/hostid" "dist/${STAGE}/hostid"
+          fi
+          cp README.md LICENSE-APACHE LICENSE-MIT "dist/${STAGE}/"
+          cp crates/host-identity/CHANGELOG.md "dist/${STAGE}/CHANGELOG.md"
+          cp man/hostid.1 man/hostid-audit.1 man/hostid-resolve.1 man/hostid-sources.1 \
+             "dist/${STAGE}/man/"
+          echo "STAGE=$STAGE" >> "$GITHUB_ENV"
+
+      # Debug symbols are staged under dist/debug/ so the archive-upload
+      # glob (`dist/*.tar.gz`, `dist/*.zip`) cannot accidentally scoop
+      # them into the primary-archive artefact.
+      - name: Strip binary and extract debug symbols (Unix)
+        if: ${{ !contains(matrix.target, 'windows') }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          mkdir -p dist/debug
+          BIN="dist/${STAGE}/hostid"
+          if [[ "$TARGET" == *apple* ]]; then
+            dsymutil "$BIN" -o "dist/${STAGE}.dSYM"
+            strip -x "$BIN"
+            tar -czf "dist/debug/${STAGE}.dSYM.tar.gz" -C dist "${STAGE}.dSYM"
+            rm -rf "dist/${STAGE}.dSYM"
+          else
+            objcopy --only-keep-debug "$BIN" "dist/debug/${STAGE}.debug"
+            strip --strip-unneeded "$BIN"
+            objcopy --add-gnu-debuglink="dist/debug/${STAGE}.debug" "$BIN"
+          fi
+
+      - name: Collect PDB debug symbols (Windows)
+        if: contains(matrix.target, 'windows')
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          mkdir -p dist/debug
+          PDB="target/${TARGET}/release/hostid.pdb"
+          if [[ -f "$PDB" ]]; then
+            cp "$PDB" "dist/debug/${STAGE}.pdb"
+          fi
+
+      - name: Create archive (Unix)
+        if: ${{ !contains(matrix.target, 'windows') }}
+        shell: bash
+        run: |
+          set -eu
+          cd dist
+          tar -czf "${STAGE}.tar.gz" "${STAGE}"
+          rm -rf "${STAGE}"
+
+      - name: Create archive (Windows)
+        if: contains(matrix.target, 'windows')
+        shell: pwsh
+        run: |
+          Set-Location dist
+          Compress-Archive -Path $env:STAGE -DestinationPath "$env:STAGE.zip"
+          Remove-Item -Recurse -Force $env:STAGE
+
+      # Archive (primary artefact). Uploading from a single flat dir
+      # ensures the downloaded layout at Stage 4 is predictable:
+      # merge-multiple leaves every file at the top of `release/`.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: archive-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: debug-${{ matrix.target }}
+          path: dist/debug/
+          if-no-files-found: ignore
+
+  # ─── Stage 2 — native packages ───────────────────────────────────────
+  package-deb:
+    name: package .deb (${{ matrix.deb_arch }})
+    needs: [preflight, build]
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu,  deb_arch: amd64 }
+          - { target: aarch64-unknown-linux-gnu, deb_arch: arm64 }
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable tip
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+
+      - uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+        with:
+          tool: cargo-deb@${{ env.CARGO_DEB_VERSION }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: archive-${{ matrix.target }}
+          path: dist
+
+      - name: Unpack archive into cargo-deb target layout
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          STAGE="hostid-${VERSION}-${TARGET}"
+          tar -xzf "dist/${STAGE}.tar.gz" -C dist
+          # cargo-deb with --target looks in target/<triple>/release/.
+          mkdir -p "target/${TARGET}/release"
+          cp "dist/${STAGE}/hostid" "target/${TARGET}/release/hostid"
+          chmod 755 "target/${TARGET}/release/hostid"
+          # Ensure man pages and licenses live where Cargo.toml assets expect.
+          mkdir -p man
+          cp "dist/${STAGE}/man/"*.1 man/
+          cp "dist/${STAGE}/LICENSE-APACHE" LICENSE-APACHE
+          cp "dist/${STAGE}/LICENSE-MIT" LICENSE-MIT
+
+      - name: Build .deb
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          mkdir -p out
+          cargo deb --no-build --no-strip \
+            -p host-identity-cli \
+            --target "$TARGET" \
+            --output "out/"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deb-${{ matrix.deb_arch }}
+          path: out/*.deb
+          if-no-files-found: error
+
+  package-rpm:
+    name: package .rpm (${{ matrix.rpm_arch }})
+    needs: [preflight, build]
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu,  rpm_arch: x86_64 }
+          - { target: aarch64-unknown-linux-gnu, rpm_arch: aarch64 }
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable tip
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+
+      - uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+        with:
+          tool: cargo-generate-rpm@${{ env.CARGO_GENERATE_RPM_VERSION }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: archive-${{ matrix.target }}
+          path: dist
+
+      - name: Unpack archive into cargo-generate-rpm layout
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          STAGE="hostid-${VERSION}-${TARGET}"
+          tar -xzf "dist/${STAGE}.tar.gz" -C dist
+          # cargo-generate-rpm looks up `target/release/<bin>` assets
+          # relative to the workspace. When cross-building, the
+          # real binary lives under target/<triple>/release/. Populate
+          # both paths so the tool finds the binary regardless of
+          # whether its --target handling rewrites the asset path.
+          mkdir -p "target/${TARGET}/release" target/release
+          cp "dist/${STAGE}/hostid" "target/${TARGET}/release/hostid"
+          cp "dist/${STAGE}/hostid" "target/release/hostid"
+          mkdir -p man
+          cp "dist/${STAGE}/man/"*.1 man/
+
+      - name: Build .rpm
+        env:
+          TARGET: ${{ matrix.target }}
+          RPM_ARCH: ${{ matrix.rpm_arch }}
+        run: |
+          set -eu
+          mkdir -p out
+          cargo generate-rpm \
+            -p crates/host-identity-cli \
+            --target "$TARGET" \
+            --arch "$RPM_ARCH" \
+            --payload-compress zstd \
+            --output "out/"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rpm-${{ matrix.rpm_arch }}
+          path: out/*.rpm
+          if-no-files-found: error
+
+  # Run abuild via `docker run alpine …` from an ubuntu host to avoid the
+  # glibc-Node-on-musl-container trap that breaks `actions/checkout` and
+  # most JavaScript actions when jobs.container is set to an alpine image.
+  package-apk:
+    name: package .apk (${{ matrix.apk_arch }})
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl,  apk_arch: x86_64 }
+          - { target: aarch64-unknown-linux-musl, apk_arch: aarch64 }
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: archive-${{ matrix.target }}
+          path: dist
+
+      - name: Render APKBUILD
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          APK_ARCH: ${{ matrix.apk_arch }}
+        run: |
+          set -eu
+          STAGE="hostid-${VERSION}-${TARGET}"
+          SHA512=$(sha512sum "dist/${STAGE}.tar.gz" | awk '{print $1}')
+          mkdir -p build/hostid
+          cp "dist/${STAGE}.tar.gz" "build/hostid/"
+          sed -e "s|@@VERSION@@|${VERSION}|g" \
+              -e "s|@@TARGET@@|${TARGET}|g" \
+              -e "s|@@ARCH@@|${APK_ARCH}|g" \
+              -e "s|@@SHA512@@|${SHA512}|g" \
+              packaging/alpine/APKBUILD.in > build/hostid/APKBUILD
+
+      - name: Build .apk inside alpine:3.20 container
+        env:
+          APK_ARCH: ${{ matrix.apk_arch }}
+          ABUILD_PRIV: ${{ secrets.ALPINE_ABUILD_KEY_PRIV }}
+          ABUILD_PUB: ${{ secrets.ALPINE_ABUILD_KEY_PUB }}
+        run: |
+          set -eu
+          mkdir -p out/apk
+          # Pass secrets via mounted files, not env — keeps them out of
+          # `docker inspect` and `ps` for the container.
+          SECRETS_DIR=$(mktemp -d)
+          trap 'rm -rf "$SECRETS_DIR"' EXIT
+          if [[ -n "${ABUILD_PRIV:-}" && -n "${ABUILD_PUB:-}" ]]; then
+            printf '%s' "$ABUILD_PRIV" > "$SECRETS_DIR/hostid.rsa"
+            printf '%s' "$ABUILD_PUB"  > "$SECRETS_DIR/hostid.rsa.pub"
+            SIGNED=1
+          else
+            echo "::warning::ALPINE_ABUILD_KEY_* secrets not set; abuild will generate an ephemeral key"
+            SIGNED=0
+          fi
+          docker run --rm \
+            -v "$PWD/build:/build" \
+            -v "$PWD/out/apk:/out" \
+            -v "$SECRETS_DIR:/keys:ro" \
+            -e APK_ARCH \
+            -e SIGNED \
+            alpine:3.20 sh -eu -c '
+              apk add --no-cache alpine-sdk
+              adduser -D -G abuild builder
+              if [ "$SIGNED" = "1" ]; then
+                mkdir -p /home/builder/.abuild /etc/apk/keys
+                install -m 600 -o builder -g abuild /keys/hostid.rsa /home/builder/.abuild/hostid.rsa
+                install -m 644 /keys/hostid.rsa.pub /etc/apk/keys/hostid.rsa.pub
+                install -m 644 -o builder -g abuild /keys/hostid.rsa.pub /home/builder/.abuild/hostid.rsa.pub
+                echo "PACKAGER_PRIVKEY=/home/builder/.abuild/hostid.rsa" > /home/builder/.abuild/abuild.conf
+                chown builder:abuild /home/builder/.abuild/abuild.conf
+              else
+                su builder -c "abuild-keygen -a -n"
+              fi
+              chown -R builder:abuild /build
+              cp -r /build/hostid /home/builder/hostid
+              chown -R builder:abuild /home/builder/hostid
+              su builder -c "cd /home/builder/hostid && abuild -F -r"
+              find /home/builder/packages -name \"*.apk\" -exec cp {} /out/ \;
+              cp /home/builder/hostid/APKBUILD /out/APKBUILD.${APK_ARCH}
+            '
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: apk-${{ matrix.apk_arch }}
+          path: out/apk/**
+          if-no-files-found: error
+
+  package-freebsd:
+    name: package FreeBSD .pkg
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: archive-x86_64-unknown-freebsd
+          path: dist
+
+      - name: Render +MANIFEST and ports Makefile
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -eu
+          sed "s|@@VERSION@@|${VERSION}|g" \
+            packaging/freebsd/+MANIFEST.in > +MANIFEST
+          mkdir -p out
+          sed "s|@@VERSION@@|${VERSION}|g" \
+            packaging/freebsd/port/Makefile > "out/freebsd-port-Makefile"
+          cp packaging/freebsd/port/pkg-descr "out/freebsd-port-pkg-descr"
+
+      - name: Build .pkg in FreeBSD VM
+        uses: vmactions/freebsd-vm@8873d98fd1413b5977cb2f7348fe329775159892 # v1.2.1
+        with:
+          release: "14.0"
+          usesh: true
+          prepare: |
+            pkg install -y ca_root_nss
+          run: |
+            set -eu
+            VERSION="${{ needs.preflight.outputs.version }}"
+            STAGE="hostid-${VERSION}-x86_64-unknown-freebsd"
+            mkdir -p stage/usr/local/bin stage/usr/local/share/man/man1 \
+                     stage/usr/local/share/licenses/hostid
+            tar -xzf "dist/${STAGE}.tar.gz" -C dist
+            install -m 755 "dist/${STAGE}/hostid" stage/usr/local/bin/hostid
+            for m in hostid hostid-audit hostid-resolve hostid-sources; do
+              install -m 644 "dist/${STAGE}/man/${m}.1" \
+                stage/usr/local/share/man/man1/${m}.1
+              gzip -9 stage/usr/local/share/man/man1/${m}.1
+            done
+            install -m 644 "dist/${STAGE}/LICENSE-APACHE" \
+              stage/usr/local/share/licenses/hostid/LICENSE-APACHE
+            install -m 644 "dist/${STAGE}/LICENSE-MIT" \
+              stage/usr/local/share/licenses/hostid/LICENSE-MIT
+            pkg create -M +MANIFEST -r stage -o out
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: freebsd-pkg
+          path: out/**
+          if-no-files-found: error
+
+  # ─── Stage 3 — smoke test (install + run each package) ───────────────
+  # aarch64 smoke tests use QEMU user-mode emulation to install/run the
+  # arm64 package inside an aarch64 container image.
+  smoke-deb:
+    name: smoke .deb (${{ matrix.image }} / ${{ matrix.arch }})
+    needs: [preflight, package-deb]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu:22.04, ubuntu:24.04, debian:12]
+        arch: [amd64, arm64]
+    steps:
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        if: matrix.arch == 'arm64'
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist
+      - name: Install and run inside ${{ matrix.image }} (${{ matrix.arch }})
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          IMAGE: ${{ matrix.image }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -eu
+          docker run --rm --platform "linux/${ARCH}" \
+            -v "$PWD/dist:/w" -e VERSION -e DEBIAN_FRONTEND=noninteractive \
+            "$IMAGE" bash -eu -c '
+              apt-get update -qq
+              apt-get install -y -qq man-db /w/*.deb
+              hostid --version | grep -F "$VERSION"
+              man --pager=cat hostid >/dev/null
+            '
+
+  smoke-rpm:
+    name: smoke .rpm (${{ matrix.image }} / ${{ matrix.arch }})
+    needs: [preflight, package-rpm]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [rockylinux:9, fedora:latest, amazonlinux:2023]
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        if: matrix.arch == 'aarch64'
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: rpm-${{ matrix.arch }}
+          path: dist
+      - name: Install and run inside ${{ matrix.image }} (${{ matrix.arch }})
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          IMAGE: ${{ matrix.image }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -eu
+          DOCKER_ARCH=$([[ "$ARCH" == "aarch64" ]] && echo arm64 || echo amd64)
+          docker run --rm --platform "linux/${DOCKER_ARCH}" \
+            -v "$PWD/dist:/w" -e VERSION \
+            "$IMAGE" bash -eu -c '
+              if command -v dnf >/dev/null; then PKG=dnf; else PKG=yum; fi
+              # man-db is not universally named/available across RHEL-family images.
+              $PKG install -y man-db 2>/dev/null || $PKG install -y man || true
+              $PKG install -y /w/*.rpm
+              hostid --version | grep -F "$VERSION"
+              # Man pages may be uncompressed or zstd/gz compressed depending on rpm build settings.
+              ls /usr/share/man/man1/hostid.1* >/dev/null
+            '
+
+  smoke-apk:
+    name: smoke .apk (${{ matrix.arch }})
+    needs: [preflight, package-apk]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+    steps:
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        if: matrix.arch == 'aarch64'
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: apk-${{ matrix.arch }}
+          path: dist
+      - name: Install and run inside alpine:3.20 (${{ matrix.arch }})
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -eu
+          DOCKER_ARCH=$([[ "$ARCH" == "aarch64" ]] && echo arm64 || echo amd64)
+          docker run --rm --platform "linux/${DOCKER_ARCH}" \
+            -v "$PWD/dist:/w" -e VERSION \
+            alpine:3.20 sh -eu -c '
+              apk add --no-cache --allow-untrusted /w/*.apk mandoc
+              hostid --version | grep -F "$VERSION"
+              test -f /usr/share/man/man1/hostid.1
+            '
+
+  smoke-freebsd:
+    name: smoke FreeBSD .pkg
+    needs: [preflight, package-freebsd]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: freebsd-pkg
+          path: dist
+      - name: Install and run inside FreeBSD 14 VM
+        uses: vmactions/freebsd-vm@8873d98fd1413b5977cb2f7348fe329775159892 # v1.2.1
+        with:
+          release: "14.0"
+          usesh: true
+          run: |
+            set -eu
+            PKG=$(ls dist/*.pkg | head -n1)
+            pkg install -y "$PKG"
+            hostid --version | grep -F "${{ needs.preflight.outputs.version }}"
+            test -f /usr/local/share/man/man1/hostid.1.gz
+
+  smoke-macos:
+    name: smoke macOS tarball (${{ matrix.runner }})
+    needs: [preflight, build]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-13,     target: x86_64-apple-darwin }
+          - { runner: macos-latest, target: aarch64-apple-darwin }
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: archive-${{ matrix.target }}
+          path: dist
+      - name: Extract and run
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          STAGE="hostid-${VERSION}-${TARGET}"
+          tar -xzf "dist/${STAGE}.tar.gz" -C dist
+          "dist/${STAGE}/hostid" --version | grep -F "$VERSION"
+          test -f "dist/${STAGE}/man/hostid.1"
+
+  smoke-windows:
+    name: smoke Windows zip
+    needs: [preflight, build]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: archive-x86_64-pc-windows-msvc
+          path: dist
+      - shell: pwsh
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          Set-Location dist
+          $zip = Get-ChildItem *.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName -DestinationPath extracted
+          $exe = Get-ChildItem -Recurse extracted -Filter hostid.exe | Select-Object -First 1
+          $out = & $exe.FullName --version
+          if ($out -notmatch [regex]::Escape($env:VERSION)) {
+            throw "version mismatch: $out"
+          }
+          if (-not (Get-ChildItem -Recurse extracted -Filter hostid.1)) {
+            throw "man page missing from zip"
+          }
+
+  # ─── Stage 4 — sign, attest, SBOM ────────────────────────────────────
+  # All artefacts are pulled into a single flat `release/` directory so
+  # downstream globs (SHA256SUMS, publish, verify) are trivial.
+  sign-attest:
+    name: sign + attest
+    needs:
+      - preflight
+      - build
+      - package-deb
+      - package-rpm
+      - package-apk
+      - package-freebsd
+      - smoke-deb
+      - smoke-rpm
+      - smoke-apk
+      - smoke-freebsd
+      - smoke-macos
+      - smoke-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - name: Gather all artefacts
+        uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          pattern: "*"
+          path: incoming
+
+      - name: Flatten into release/
+        run: |
+          set -eu
+          mkdir -p release
+          # Every artefact's contents move to the top of release/. Duplicate
+          # file names across artefacts would collide, but our naming
+          # scheme (`hostid-<ver>-<target>.<ext>`, APKBUILD.<arch>) is
+          # collision-free by construction. release-notes.md is
+          # explicitly excluded — it's consumed by the publish step as
+          # `body_path` and must not appear in SHA256SUMS (it isn't
+          # attached as a release asset, so verifiers running
+          # `sha256sum -c SHA256SUMS` would fail on a missing file).
+          find incoming -type f ! -name 'release-notes.md' \
+            -exec cp -n {} release/ \;
+          ls -la release/
+
+      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable tip
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+        with:
+          tool: cargo-cyclonedx@${{ env.CARGO_CYCLONEDX_VERSION }}
+
+      - name: Generate CycloneDX SBOMs
+        run: |
+          set -eu
+          cargo cyclonedx --format json --all --describe crate --spec-version 1.5
+          cp crates/host-identity/host-identity.cdx.json release/
+          cp crates/host-identity-cli/host-identity-cli.cdx.json release/
+
+      - name: Compute SHA256SUMS
+        working-directory: release
+        run: |
+          set -eu
+          find . -maxdepth 1 -type f ! -name 'SHA256SUMS*' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Install minisign
+        run: sudo apt-get update && sudo apt-get install -y minisign
+
+      - name: Sign SHA256SUMS with minisign
+        env:
+          MINISIGN_SECRET: ${{ secrets.MINISIGN_SECRET_KEY }}
+          MINISIGN_PASSWORD: ${{ secrets.MINISIGN_PASSWORD }}
+        run: |
+          set -eu
+          if [[ -z "${MINISIGN_SECRET:-}" ]]; then
+            echo "::error::MINISIGN_SECRET_KEY not configured"
+            exit 1
+          fi
+          KEYFILE=$(mktemp)
+          trap 'rm -f "$KEYFILE"' EXIT
+          printf '%s' "$MINISIGN_SECRET" > "$KEYFILE"
+          chmod 600 "$KEYFILE"
+          printf '%s\n' "$MINISIGN_PASSWORD" | minisign -S -s "$KEYFILE" \
+            -m release/SHA256SUMS -x release/SHA256SUMS.minisig
+
+      - name: SLSA build provenance
+        uses: actions/attest-build-provenance@c4fbc648846ca6f503a13a2281a5e7b98aa57202 # v2.2.3
+        with:
+          subject-path: |
+            release/*.tar.gz
+            release/*.zip
+            release/*.deb
+            release/*.rpm
+            release/*.apk
+            release/*.pkg
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-bundle
+          path: release/
+          if-no-files-found: error
+
+  # ─── Stage 5 — publish (only job that mutates the world) ─────────────
+  publish:
+    name: publish
+    needs: [preflight, sign-attest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: release-bundle
+          path: release
+      - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
+        with:
+          name: release-notes
+          path: .
+
+      - name: Attach artefacts to GitHub Release
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+        with:
+          tag_name: ${{ needs.preflight.outputs.tag }}
+          body_path: release-notes.md
+          prerelease: ${{ needs.preflight.outputs.prerelease == 'true' }}
+          fail_on_unmatched_files: false
+          files: |
+            release/*.tar.gz
+            release/*.zip
+            release/*.deb
+            release/*.rpm
+            release/*.apk
+            release/*.pkg
+            release/*.debug
+            release/*.pdb
+            release/*.cdx.json
+            release/SHA256SUMS
+            release/SHA256SUMS.minisig
+            release/APKBUILD.*
+            release/freebsd-port-Makefile
+            release/freebsd-port-pkg-descr
+
+      - name: Compute tap/bucket SHA-256s
+        if: needs.preflight.outputs.prerelease != 'true'
+        id: hashes
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -eu
+          get() { sha256sum "release/hostid-${VERSION}-$1.tar.gz" | awk '{print $1}'; }
+          getzip() { sha256sum "release/hostid-${VERSION}-$1.zip" | awk '{print $1}'; }
+          {
+            echo "macos_x86_64=$(get x86_64-apple-darwin)"
+            echo "macos_aarch64=$(get aarch64-apple-darwin)"
+            echo "win_x86_64=$(getzip x86_64-pc-windows-msvc)"
+            echo "win_aarch64=$(getzip aarch64-pc-windows-msvc)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Render Homebrew formula
+        if: needs.preflight.outputs.prerelease != 'true'
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          MACOS_X86_64: ${{ steps.hashes.outputs.macos_x86_64 }}
+          MACOS_AARCH64: ${{ steps.hashes.outputs.macos_aarch64 }}
+        run: |
+          set -eu
+          sed -e "s|@@VERSION@@|${VERSION}|g" \
+              -e "s|@@SHA256_X86_64@@|${MACOS_X86_64}|g" \
+              -e "s|@@SHA256_AARCH64@@|${MACOS_AARCH64}|g" \
+              packaging/homebrew/hostid.rb.tmpl > hostid.rb
+
+      # Git clone with token header rather than embedded URL credential —
+      # keeps the PAT out of the clone's .git/config.
+      - name: Push Homebrew formula to tap repo
+        if: needs.preflight.outputs.prerelease != 'true'
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -eu
+          if [[ -z "${HOMEBREW_TAP_TOKEN:-}" ]]; then
+            echo "HOMEBREW_TAP_TOKEN not set — skipping tap push"
+            exit 0
+          fi
+          REPO="https://github.com/dekobon/homebrew-host-identity.git"
+          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$HOMEBREW_TAP_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=$AUTH_HEADER" clone "$REPO" tap
+          mkdir -p tap/Formula
+          cp hostid.rb tap/Formula/hostid.rb
+          cd tap
+          git config user.name "host-identity release bot"
+          git config user.email "release-bot@host-identity"
+          git add Formula/hostid.rb
+          if git diff --cached --quiet; then
+            echo "Formula unchanged — skipping push"
+          else
+            git commit -m "hostid ${VERSION}"
+            git -c "http.extraheader=$AUTH_HEADER" push origin HEAD
+          fi
+
+      - name: Render Scoop manifest
+        if: needs.preflight.outputs.prerelease != 'true'
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          WIN_X86_64: ${{ steps.hashes.outputs.win_x86_64 }}
+          WIN_AARCH64: ${{ steps.hashes.outputs.win_aarch64 }}
+        run: |
+          set -eu
+          sed -e "s|@@VERSION@@|${VERSION}|g" \
+              -e "s|@@SHA256_X86_64@@|${WIN_X86_64}|g" \
+              -e "s|@@SHA256_AARCH64@@|${WIN_AARCH64}|g" \
+              packaging/scoop/hostid.json.in > hostid.json
+
+      - name: Push Scoop manifest to bucket repo
+        if: needs.preflight.outputs.prerelease != 'true'
+        env:
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -eu
+          if [[ -z "${SCOOP_BUCKET_TOKEN:-}" ]]; then
+            echo "SCOOP_BUCKET_TOKEN not set — skipping bucket push"
+            exit 0
+          fi
+          REPO="https://github.com/dekobon/scoop-bucket.git"
+          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$SCOOP_BUCKET_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=$AUTH_HEADER" clone "$REPO" bucket
+          mkdir -p bucket/bucket
+          cp hostid.json bucket/bucket/hostid.json
+          cd bucket
+          git config user.name "host-identity release bot"
+          git config user.email "release-bot@host-identity"
+          git add bucket/hostid.json
+          if git diff --cached --quiet; then
+            echo "Manifest unchanged — skipping push"
+          else
+            git commit -m "hostid ${VERSION}"
+            git -c "http.extraheader=$AUTH_HEADER" push origin HEAD
+          fi
+
+      # winget-releaser fails fast if the token is missing, so we only
+      # gate on the prerelease flag and let the action surface config
+      # errors.
+      - name: Open winget PR
+        if: needs.preflight.outputs.prerelease != 'true'
+        uses: vedantmgoyal9/winget-releaser@7a1bb91b13bfc79a0e2a53eaaafa19f1eb7dc6ee # v2
+        with:
+          identifier: dekobon.hostid
+          version: ${{ needs.preflight.outputs.version }}
+          installers-regex: 'hostid-.*-pc-windows-msvc\.zip$'
+          token: ${{ secrets.WINGET_TOKEN }}
+
+  # ─── Stage 6 — post-publish verification ─────────────────────────────
+  verify:
+    name: post-publish verify
+    needs: [preflight, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+      - name: Install minisign
+        run: sudo apt-get update && sudo apt-get install -y minisign
+      - name: Download artefact + signature from published release
+        env:
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir verify && cd verify
+          ART="hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          gh release download "$TAG" -R "${{ github.repository }}" \
+            -p "$ART" -p SHA256SUMS -p SHA256SUMS.minisig
+      - name: Verify minisign signature and checksum
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -eu
+          cd verify
+          minisign -Vm SHA256SUMS -p ../minisign.pub
+          grep "hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz" SHA256SUMS \
+            | sha256sum -c
+      - name: Verify SLSA provenance
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          cd verify
+          gh attestation verify "hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            -R "${{ github.repository }}"

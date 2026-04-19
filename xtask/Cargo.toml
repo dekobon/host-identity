@@ -1,0 +1,15 @@
+[package]
+name = "xtask"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+clap_mangen = "0.2"
+host-identity-cli = { version = "0.1", path = "../crates/host-identity-cli", default-features = false, features = ["container", "network"] }
+
+[lints]
+workspace = true
