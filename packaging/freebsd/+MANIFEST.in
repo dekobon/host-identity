@@ -8,11 +8,5 @@ maintainer: "e.zupancic@f5.com"
 prefix: "/usr/local"
 licenselogic: "dual"
 licenses: ["APACHE20", "MIT"]
-desc: |
-  Print a stable host UUID across platforms, clouds, and Kubernetes.
-
-  host-identity resolves a deterministic UUID for a machine by walking
-  a set of sources (machine-id, DMI product UUID, cloud metadata,
-  container identifiers, Kubernetes node/pod UIDs) and returning the
-  first one that proves the host's identity.
+desc: "Print a stable host UUID across platforms, clouds, and Kubernetes. host-identity resolves a deterministic UUID for a machine by walking a set of sources (machine-id, DMI product UUID, cloud metadata, container identifiers, Kubernetes node/pod UIDs) and returning the first one that proves the host's identity."
 categories: [sysutils]

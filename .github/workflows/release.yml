@@ -35,8 +35,11 @@ env:
   # library MSRV (enforced in ci.yml).
   RUST_TOOLCHAIN: "1.86.0"
   CROSS_VERSION: "0.2.5"
-  CARGO_DEB_VERSION: "2.7.0"
-  CARGO_GENERATE_RPM_VERSION: "0.15.0"
+  # cargo-deb 2.x cannot parse `resolver = "3"` in Cargo.toml (stabilised
+  # in Rust 1.84); 3.x adds support. cargo-generate-rpm 0.15 has the same
+  # limitation — 0.20 is the first resolver-3-aware release.
+  CARGO_DEB_VERSION: "3.6.3"
+  CARGO_GENERATE_RPM_VERSION: "0.20.0"
   CARGO_CYCLONEDX_VERSION: "0.5.7"
   CARGO_ABOUT_VERSION: "0.8.4"
 
@@ -538,12 +541,15 @@ jobs:
             echo "::warning::ALPINE_ABUILD_KEY_* secrets not set; abuild will generate an ephemeral key"
             SIGNED=0
           fi
+          # Pass SIGNED and APK_ARCH with explicit values. The value-less
+          # `-e FOO` form reads from the current process's exported
+          # environment, but these are plain shell locals, not exports.
           docker run --rm \
             -v "$PWD/build:/build" \
             -v "$PWD/out/apk:/out" \
             -v "$SECRETS_DIR:/keys:ro" \
-            -e APK_ARCH \
-            -e SIGNED \
+            -e APK_ARCH="$APK_ARCH" \
+            -e SIGNED="$SIGNED" \
             alpine:3.20 sh -eu -c '
               apk add --no-cache alpine-sdk
               adduser -D -G abuild builder
