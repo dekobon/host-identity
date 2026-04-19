@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Breaking (CLI binary name):** the CLI binary is now installed as
+  `host-identity` (was `hostid`) to avoid colliding with coreutils
+  `hostid(1)`, which ships on every Linux distro and the BSDs. Every
+  package artefact, man page (`host-identity.1`, `host-identity-audit.1`,
+  `host-identity-resolve.1`, `host-identity-sources.1`), Homebrew
+  formula class (`HostIdentity`), Scoop manifest bin, and filename
+  follows the new name. The library crate `host-identity` and the CLI
+  crate `host-identity-cli` are unchanged — only the produced binary
+  was renamed. Script users must update `hostid <args>` to
+  `host-identity <args>`.
 - `DmiProductUuid` now rejects well-known SMBIOS vendor-placeholder
   UUIDs (all-zero, all-F, all-same-nibble, and a curated
   fwupd/dmidecode-sourced list such as
@@ -70,7 +80,7 @@ by semver.
   projected files.
 - Operator overrides: `HOST_IDENTITY` environment variable and a
   file-path override, both consulted ahead of every platform source.
-- `host-identity-cli` (`hostid`) binary: `resolve` (default),
+- `host-identity-cli` (`host-identity`) binary: `resolve` (default),
   `audit` (walk every source without short-circuiting and report each
   outcome), `sources` (list compiled-in sources), and `--version`.
   Man pages are generated from the clap schema.

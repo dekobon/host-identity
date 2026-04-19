@@ -1,4 +1,4 @@
-//! `hostid` binary entry point. All logic lives in the
+//! `host-identity` binary entry point. All logic lives in the
 //! [`host_identity_cli`] library so tooling (the workspace `xtask`
 //! that generates man pages) can reuse the same `clap` definition.
 

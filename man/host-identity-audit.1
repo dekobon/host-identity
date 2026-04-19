@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH HOSTID-AUDIT 1  "hostid 1.0.0-rc1" "hostid Manual"
+.TH HOST-IDENTITY-AUDIT 1  "host-identity 1.0.0-rc1" "host-identity Manual"
 .SH NAME
-hostid\-audit \- Walk every source without short\-circuiting and report each outcome
+host\-identity\-audit \- Walk every source without short\-circuiting and report each outcome
 .SH SYNOPSIS
-\fBhostid\-audit\fR [\fB\-\-format\fR] [\fB\-\-wrap\fR] [\fB\-\-sources\fR] [\fB\-\-network\fR] [\fB\-\-network\-timeout\-ms\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBhost\-identity\-audit\fR [\fB\-\-format\fR] [\fB\-\-wrap\fR] [\fB\-\-sources\fR] [\fB\-\-network\fR] [\fB\-\-network\-timeout\-ms\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 Walk every source without short\-circuiting and report each outcome
 .SH OPTIONS
@@ -40,7 +40,7 @@ passthrough
 .RE
 .TP
 \fB\-\-sources\fR \fI<SOURCES>\fR
-Comma\-separated source identifiers to build a custom chain (see `hostid sources`). Combine with `\-\-network` to include cloud\-metadata sources in the chain
+Comma\-separated source identifiers to build a custom chain (see `host\-identity sources`). Combine with `\-\-network` to include cloud\-metadata sources in the chain
 .TP
 \fB\-\-network\fR
 Enable cloud\-metadata and Kubernetes sources by supplying an HTTP transport. Without `\-\-sources` this adds them to the default chain; with `\-\-sources` it lets identifiers like `aws\-imds` resolve. Requires the binary to be built with the `network` feature

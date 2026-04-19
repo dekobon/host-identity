@@ -1,14 +1,14 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH HOSTID 1  "hostid 1.0.0-rc1" "hostid Manual"
+.TH HOST-IDENTITY 1  "host-identity 1.0.0-rc1" "host-identity Manual"
 .SH NAME
-hostid \- Resolve a stable host UUID across platforms, clouds, and Kubernetes
+host\-identity \- Resolve a stable host UUID across platforms, clouds, and Kubernetes
 .SH SYNOPSIS
-\fBhostid\fR [\fB\-\-format\fR] [\fB\-\-wrap\fR] [\fB\-\-sources\fR] [\fB\-\-network\fR] [\fB\-\-network\-timeout\-ms\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] [\fIsubcommands\fR]
+\fBhost\-identity\fR [\fB\-\-format\fR] [\fB\-\-wrap\fR] [\fB\-\-sources\fR] [\fB\-\-network\fR] [\fB\-\-network\-timeout\-ms\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] [\fIsubcommands\fR]
 .SH DESCRIPTION
 Resolve a stable, collision\-resistant host UUID across platforms, container runtimes, cloud providers, and Kubernetes.
 .PP
-hostid walks a platform\-appropriate chain of identity sources (env override, /etc/machine\-id, DMI, cloud metadata, Kubernetes pod UID, …) and returns the first one that produces a credible identifier. Cloned\-VM sentinels, empty files, and systemd\*(Aqs literal `uninitialized` string are rejected rather than silently hashed into a shared ID.
+host\-identity walks a platform\-appropriate chain of identity sources (env override, /etc/machine\-id, DMI, cloud metadata, Kubernetes pod UID, …) and returns the first one that produces a credible identifier. Cloned\-VM sentinels, empty files, and systemd\*(Aqs literal `uninitialized` string are rejected rather than silently hashed into a shared ID.
 .PP
 The HOST_IDENTITY environment variable (or a file named by HOST_IDENTITY_FILE) takes precedence over every other source, so operators can pin identity explicitly when the automatic chain gets it wrong.
 .PP
@@ -46,7 +46,7 @@ passthrough
 .RE
 .TP
 \fB\-\-sources\fR \fI<SOURCES>\fR
-Comma\-separated source identifiers to build a custom chain (see `hostid sources`). Combine with `\-\-network` to include cloud\-metadata sources in the chain
+Comma\-separated source identifiers to build a custom chain (see `host\-identity sources`). Combine with `\-\-network` to include cloud\-metadata sources in the chain
 .TP
 \fB\-\-network\fR
 Enable cloud\-metadata and Kubernetes sources by supplying an HTTP transport. Without `\-\-sources` this adds them to the default chain; with `\-\-sources` it lets identifiers like `aws\-imds` resolve. Requires the binary to be built with the `network` feature
@@ -61,36 +61,36 @@ Print help (see a summary with \*(Aq\-h\*(Aq)
 Print version
 .SH SUBCOMMANDS
 .TP
-hostid\-resolve(1)
+host\-identity\-resolve(1)
 Resolve the host identity and print it (default)
 .TP
-hostid\-audit(1)
+host\-identity\-audit(1)
 Walk every source without short\-circuiting and report each outcome
 .TP
-hostid\-sources(1)
+host\-identity\-sources(1)
 List every source identifier compiled into this binary
 .TP
-hostid\-help(1)
+host\-identity\-help(1)
 Print this message or the help of the given subcommand(s)
 .SH EXTRA
 EXAMPLES:
     Print the host UUID using the default local source chain:
-        hostid
+        host\-identity
 
     Include cloud\-metadata and Kubernetes sources:
-        hostid resolve \-\-network
+        host\-identity resolve \-\-network
 
     Build a custom chain from explicit source identifiers:
-        hostid resolve \-\-sources env\-override,machine\-id,dmi
+        host\-identity resolve \-\-sources env\-override,machine\-id,dmi
 
     Emit machine\-readable output:
-        hostid resolve \-\-format json
-        hostid audit \-\-format json
+        host\-identity resolve \-\-format json
+        host\-identity audit \-\-format json
 
     Pin identity via environment override:
-        HOST_IDENTITY=11111111\-2222\-3333\-4444\-555555555555 hostid
+        HOST_IDENTITY=11111111\-2222\-3333\-4444\-555555555555 host\-identity
 
     List every source identifier compiled into this binary:
-        hostid sources
+        host\-identity sources
 .SH VERSION
 v1.0.0\-rc1

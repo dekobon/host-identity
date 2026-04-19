@@ -1,5 +1,5 @@
 # Maintainer: Elijah Zupancic <e.zupancic@f5.com>
-pkgname=hostid
+pkgname=host-identity
 # abuild rejects semver pre-release hyphens (e.g. 1.0.0-rc1) with
 # "not a valid version" and expects the underscore form (1.0.0_rc1).
 # `@@APK_PKGVER@@` is `@@VERSION@@` with `-` replaced by `_` by the
@@ -11,19 +11,19 @@ pkgdesc="Stable host UUID across platforms, clouds, and Kubernetes"
 url="https://github.com/dekobon/host-identity"
 arch="@@ARCH@@"
 license="Apache-2.0 OR MIT"
-source="hostid-@@VERSION@@-@@TARGET@@.tar.gz::https://github.com/dekobon/host-identity/releases/download/v@@VERSION@@/hostid-@@VERSION@@-@@TARGET@@.tar.gz"
+source="host-identity-@@VERSION@@-@@TARGET@@.tar.gz::https://github.com/dekobon/host-identity/releases/download/v@@VERSION@@/host-identity-@@VERSION@@-@@TARGET@@.tar.gz"
 options="!check"
-builddir="$srcdir/hostid-@@VERSION@@-@@TARGET@@"
+builddir="$srcdir/host-identity-@@VERSION@@-@@TARGET@@"
 
 package() {
-	install -Dm755 "$builddir/hostid" "$pkgdir/usr/bin/hostid"
-	install -Dm644 "$builddir/man/hostid.1" "$pkgdir/usr/share/man/man1/hostid.1"
-	install -Dm644 "$builddir/man/hostid-audit.1" "$pkgdir/usr/share/man/man1/hostid-audit.1"
-	install -Dm644 "$builddir/man/hostid-resolve.1" "$pkgdir/usr/share/man/man1/hostid-resolve.1"
-	install -Dm644 "$builddir/man/hostid-sources.1" "$pkgdir/usr/share/man/man1/hostid-sources.1"
+	install -Dm755 "$builddir/host-identity" "$pkgdir/usr/bin/host-identity"
+	install -Dm644 "$builddir/man/host-identity.1" "$pkgdir/usr/share/man/man1/host-identity.1"
+	install -Dm644 "$builddir/man/host-identity-audit.1" "$pkgdir/usr/share/man/man1/host-identity-audit.1"
+	install -Dm644 "$builddir/man/host-identity-resolve.1" "$pkgdir/usr/share/man/man1/host-identity-resolve.1"
+	install -Dm644 "$builddir/man/host-identity-sources.1" "$pkgdir/usr/share/man/man1/host-identity-sources.1"
 	install -Dm644 "$builddir/LICENSE-APACHE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"
 	install -Dm644 "$builddir/LICENSE-MIT" "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
 	install -Dm644 "$builddir/THIRD-PARTY-LICENSES.md" "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-LICENSES.md"
 }
 
-sha512sums="@@SHA512@@  hostid-@@VERSION@@-@@TARGET@@.tar.gz"
+sha512sums="@@SHA512@@  host-identity-@@VERSION@@-@@TARGET@@.tar.gz"

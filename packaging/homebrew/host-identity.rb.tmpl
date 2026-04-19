@@ -3,7 +3,7 @@
 
 # Rendered by .github/workflows/release.yml on each v* tag.
 # Tokens substituted: @@VERSION@@, @@SHA256_AARCH64@@.
-class Hostid < Formula
+class HostIdentity < Formula
   desc "Stable host UUID across platforms, clouds, and Kubernetes"
   homepage "https://github.com/dekobon/host-identity"
   version "@@VERSION@@"
@@ -15,18 +15,18 @@ class Hostid < Formula
   # keeping Intel in the release matrix.
   on_macos do
     on_arm do
-      url "https://github.com/dekobon/host-identity/releases/download/v#{version}/hostid-#{version}-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/dekobon/host-identity/releases/download/v#{version}/host-identity-#{version}-aarch64-apple-darwin.tar.gz"
       sha256 "@@SHA256_AARCH64@@"
     end
   end
 
   def install
-    bin.install "hostid"
+    bin.install "host-identity"
     man1.install Dir["man/*.1"]
     doc.install "README.md", "LICENSE-APACHE", "LICENSE-MIT", "THIRD-PARTY-LICENSES.md"
   end
 
   test do
-    assert_match version.to_s, shell_output("#{bin}/hostid --version")
+    assert_match version.to_s, shell_output("#{bin}/host-identity --version")
   end
 end

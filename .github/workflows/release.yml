@@ -246,12 +246,12 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -eu
-          STAGE="hostid-${VERSION}-${TARGET}"
+          STAGE="host-identity-${VERSION}-${TARGET}"
           mkdir -p "dist/${STAGE}/man"
           if [[ "$TARGET" == *windows* ]]; then
-            cp "target/${TARGET}/release/hostid.exe" "dist/${STAGE}/hostid.exe"
+            cp "target/${TARGET}/release/host-identity.exe" "dist/${STAGE}/host-identity.exe"
           else
-            cp "target/${TARGET}/release/hostid" "dist/${STAGE}/hostid"
+            cp "target/${TARGET}/release/host-identity" "dist/${STAGE}/host-identity"
           fi
           cp README.md LICENSE-APACHE LICENSE-MIT "dist/${STAGE}/"
           cp crates/host-identity/CHANGELOG.md "dist/${STAGE}/CHANGELOG.md"
@@ -264,7 +264,7 @@ jobs:
             --manifest-path crates/host-identity-cli/Cargo.toml \
             about.hbs \
             > "dist/${STAGE}/THIRD-PARTY-LICENSES.md"
-          cp man/hostid.1 man/hostid-audit.1 man/hostid-resolve.1 man/hostid-sources.1 \
+          cp man/host-identity.1 man/host-identity-audit.1 man/host-identity-resolve.1 man/host-identity-sources.1 \
              "dist/${STAGE}/man/"
           echo "STAGE=$STAGE" >> "$GITHUB_ENV"
 
@@ -294,7 +294,7 @@ jobs:
         run: |
           set -eu
           mkdir -p dist/debug
-          BIN="dist/${STAGE}/hostid"
+          BIN="dist/${STAGE}/host-identity"
           if [[ "$TARGET" == *apple* ]]; then
             dsymutil "$BIN" -o "dist/${STAGE}.dSYM"
             strip -x "$BIN"
@@ -314,7 +314,7 @@ jobs:
         run: |
           set -eu
           mkdir -p dist/debug
-          PDB="target/${TARGET}/release/hostid.pdb"
+          PDB="target/${TARGET}/release/host-identity.pdb"
           if [[ -f "$PDB" ]]; then
             cp "$PDB" "dist/debug/${STAGE}.pdb"
           fi
@@ -390,12 +390,12 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -eu
-          STAGE="hostid-${VERSION}-${TARGET}"
+          STAGE="host-identity-${VERSION}-${TARGET}"
           tar -xzf "dist/${STAGE}.tar.gz" -C dist
           # cargo-deb with --target looks in target/<triple>/release/.
           mkdir -p "target/${TARGET}/release"
-          cp "dist/${STAGE}/hostid" "target/${TARGET}/release/hostid"
-          chmod 755 "target/${TARGET}/release/hostid"
+          cp "dist/${STAGE}/host-identity" "target/${TARGET}/release/host-identity"
+          chmod 755 "target/${TARGET}/release/host-identity"
           # Ensure man pages and licenses live where Cargo.toml assets expect.
           mkdir -p man
           cp "dist/${STAGE}/man/"*.1 man/
@@ -456,7 +456,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -eu
-          STAGE="hostid-${VERSION}-${TARGET}"
+          STAGE="host-identity-${VERSION}-${TARGET}"
           tar -xzf "dist/${STAGE}.tar.gz" -C dist
           # cargo-generate-rpm looks up `target/release/<bin>` assets
           # relative to the workspace. When cross-building, the
@@ -464,8 +464,8 @@ jobs:
           # both paths so the tool finds the binary regardless of
           # whether its --target handling rewrites the asset path.
           mkdir -p "target/${TARGET}/release" target/release
-          cp "dist/${STAGE}/hostid" "target/${TARGET}/release/hostid"
-          cp "dist/${STAGE}/hostid" "target/release/hostid"
+          cp "dist/${STAGE}/host-identity" "target/${TARGET}/release/host-identity"
+          cp "dist/${STAGE}/host-identity" "target/release/host-identity"
           mkdir -p man
           cp "dist/${STAGE}/man/"*.1 man/
           cp "dist/${STAGE}/THIRD-PARTY-LICENSES.md" THIRD-PARTY-LICENSES.md
@@ -521,18 +521,18 @@ jobs:
           APK_ARCH: ${{ matrix.apk_arch }}
         run: |
           set -eu
-          STAGE="hostid-${VERSION}-${TARGET}"
+          STAGE="host-identity-${VERSION}-${TARGET}"
           SHA512=$(sha512sum "dist/${STAGE}.tar.gz" | awk '{print $1}')
           # Hyphen→underscore for abuild pkgver; see APKBUILD.in for rationale.
           APK_PKGVER="${VERSION//-/_}"
-          mkdir -p build/hostid
-          cp "dist/${STAGE}.tar.gz" "build/hostid/"
+          mkdir -p build/host-identity
+          cp "dist/${STAGE}.tar.gz" "build/host-identity/"
           sed -e "s|@@VERSION@@|${VERSION}|g" \
               -e "s|@@APK_PKGVER@@|${APK_PKGVER}|g" \
               -e "s|@@TARGET@@|${TARGET}|g" \
               -e "s|@@ARCH@@|${APK_ARCH}|g" \
               -e "s|@@SHA512@@|${SHA512}|g" \
-              packaging/alpine/APKBUILD.in > build/hostid/APKBUILD
+              packaging/alpine/APKBUILD.in > build/host-identity/APKBUILD
 
       - name: Build .apk inside alpine:3.20 container
         env:
@@ -547,8 +547,8 @@ jobs:
           SECRETS_DIR=$(mktemp -d)
           trap 'rm -rf "$SECRETS_DIR"' EXIT
           if [[ -n "${ABUILD_PRIV:-}" && -n "${ABUILD_PUB:-}" ]]; then
-            printf '%s' "$ABUILD_PRIV" > "$SECRETS_DIR/hostid.rsa"
-            printf '%s' "$ABUILD_PUB"  > "$SECRETS_DIR/hostid.rsa.pub"
+            printf '%s' "$ABUILD_PRIV" > "$SECRETS_DIR/host-identity.rsa"
+            printf '%s' "$ABUILD_PUB"  > "$SECRETS_DIR/host-identity.rsa.pub"
             SIGNED=1
           else
             echo "::warning::ALPINE_ABUILD_KEY_* secrets not set; abuild will generate an ephemeral key"
@@ -568,20 +568,20 @@ jobs:
               adduser -D -G abuild builder
               if [ "$SIGNED" = "1" ]; then
                 mkdir -p /home/builder/.abuild /etc/apk/keys
-                install -m 600 -o builder -g abuild /keys/hostid.rsa /home/builder/.abuild/hostid.rsa
-                install -m 644 /keys/hostid.rsa.pub /etc/apk/keys/hostid.rsa.pub
-                install -m 644 -o builder -g abuild /keys/hostid.rsa.pub /home/builder/.abuild/hostid.rsa.pub
-                echo "PACKAGER_PRIVKEY=/home/builder/.abuild/hostid.rsa" > /home/builder/.abuild/abuild.conf
+                install -m 600 -o builder -g abuild /keys/host-identity.rsa /home/builder/.abuild/host-identity.rsa
+                install -m 644 /keys/host-identity.rsa.pub /etc/apk/keys/host-identity.rsa.pub
+                install -m 644 -o builder -g abuild /keys/host-identity.rsa.pub /home/builder/.abuild/host-identity.rsa.pub
+                echo "PACKAGER_PRIVKEY=/home/builder/.abuild/host-identity.rsa" > /home/builder/.abuild/abuild.conf
                 chown builder:abuild /home/builder/.abuild/abuild.conf
               else
                 su builder -c "abuild-keygen -a -n"
               fi
               chown -R builder:abuild /build
-              cp -r /build/hostid /home/builder/hostid
-              chown -R builder:abuild /home/builder/hostid
-              su builder -c "cd /home/builder/hostid && abuild -F -r"
+              cp -r /build/host-identity /home/builder/host-identity
+              chown -R builder:abuild /home/builder/host-identity
+              su builder -c "cd /home/builder/host-identity && abuild -F -r"
               find /home/builder/packages -name \"*.apk\" -exec cp {} /out/ \;
-              cp /home/builder/hostid/APKBUILD /out/APKBUILD.${APK_ARCH}
+              cp /home/builder/host-identity/APKBUILD /out/APKBUILD.${APK_ARCH}
             '
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -627,22 +627,22 @@ jobs:
           run: |
             set -eu
             VERSION="${{ needs.preflight.outputs.version }}"
-            STAGE="hostid-${VERSION}-x86_64-unknown-freebsd"
+            STAGE="host-identity-${VERSION}-x86_64-unknown-freebsd"
             mkdir -p stage/usr/local/bin stage/usr/local/share/man/man1 \
-                     stage/usr/local/share/licenses/hostid
+                     stage/usr/local/share/licenses/host-identity
             tar -xzf "dist/${STAGE}.tar.gz" -C dist
-            install -m 755 "dist/${STAGE}/hostid" stage/usr/local/bin/hostid
-            for m in hostid hostid-audit hostid-resolve hostid-sources; do
+            install -m 755 "dist/${STAGE}/host-identity" stage/usr/local/bin/host-identity
+            for m in host-identity host-identity-audit host-identity-resolve host-identity-sources; do
               install -m 644 "dist/${STAGE}/man/${m}.1" \
                 stage/usr/local/share/man/man1/${m}.1
               gzip -9 stage/usr/local/share/man/man1/${m}.1
             done
             install -m 644 "dist/${STAGE}/LICENSE-APACHE" \
-              stage/usr/local/share/licenses/hostid/LICENSE-APACHE
+              stage/usr/local/share/licenses/host-identity/LICENSE-APACHE
             install -m 644 "dist/${STAGE}/LICENSE-MIT" \
-              stage/usr/local/share/licenses/hostid/LICENSE-MIT
+              stage/usr/local/share/licenses/host-identity/LICENSE-MIT
             install -m 644 "dist/${STAGE}/THIRD-PARTY-LICENSES.md" \
-              stage/usr/local/share/licenses/hostid/THIRD-PARTY-LICENSES.md
+              stage/usr/local/share/licenses/host-identity/THIRD-PARTY-LICENSES.md
             pkg create -M +MANIFEST -r stage -o out
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -682,13 +682,13 @@ jobs:
             "$IMAGE" bash -eu -c '
               apt-get update -qq
               apt-get install -y -qq man-db /w/*.deb
-              hostid --version | grep -F "$VERSION"
-              man --pager=cat hostid >/dev/null
+              host-identity --version | grep -F "$VERSION"
+              man --pager=cat host-identity >/dev/null
               # Content regression guard: ring ships `Apache-2.0 AND
               # ISC`, both texts mandatory. If either drops out (e.g.
               # someone removes "ISC" from about.toml accepted), the
               # bundle is non-compliant. Run in one lane only — deb.
-              TPL=/usr/share/doc/hostid/THIRD-PARTY-LICENSES.md
+              TPL=/usr/share/doc/host-identity/THIRD-PARTY-LICENSES.md
               test -s "$TPL"
               grep -qF "ring" "$TPL"
               grep -q "^### ISC License" "$TPL"
@@ -726,10 +726,10 @@ jobs:
               # man-db is not universally named/available across RHEL-family images.
               $PKG install -y man-db 2>/dev/null || $PKG install -y man || true
               $PKG install -y /w/*.rpm
-              hostid --version | grep -F "$VERSION"
+              host-identity --version | grep -F "$VERSION"
               # Man pages may be uncompressed or zstd/gz compressed depending on rpm build settings.
-              ls /usr/share/man/man1/hostid.1* >/dev/null
-              test -s /usr/share/doc/hostid/THIRD-PARTY-LICENSES.md
+              ls /usr/share/man/man1/host-identity.1* >/dev/null
+              test -s /usr/share/doc/host-identity/THIRD-PARTY-LICENSES.md
             '
 
   smoke-apk:
@@ -758,9 +758,9 @@ jobs:
             -v "$PWD/dist:/w" -e VERSION \
             alpine:3.20 sh -eu -c '
               apk add --no-cache --allow-untrusted /w/*.apk mandoc
-              hostid --version | grep -F "$VERSION"
-              test -f /usr/share/man/man1/hostid.1
-              test -s /usr/share/licenses/hostid/THIRD-PARTY-LICENSES.md
+              host-identity --version | grep -F "$VERSION"
+              test -f /usr/share/man/man1/host-identity.1
+              test -s /usr/share/licenses/host-identity/THIRD-PARTY-LICENSES.md
             '
 
   smoke-freebsd:
@@ -781,9 +781,9 @@ jobs:
             set -eu
             PKG=$(ls dist/*.pkg | head -n1)
             pkg install -y "$PKG"
-            hostid --version | grep -F "${{ needs.preflight.outputs.version }}"
-            test -f /usr/local/share/man/man1/hostid.1.gz
-            test -s /usr/local/share/licenses/hostid/THIRD-PARTY-LICENSES.md
+            host-identity --version | grep -F "${{ needs.preflight.outputs.version }}"
+            test -f /usr/local/share/man/man1/host-identity.1.gz
+            test -s /usr/local/share/licenses/host-identity/THIRD-PARTY-LICENSES.md
 
   smoke-macos:
     name: smoke macOS tarball (${{ matrix.runner }})
@@ -805,10 +805,10 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -eu
-          STAGE="hostid-${VERSION}-${TARGET}"
+          STAGE="host-identity-${VERSION}-${TARGET}"
           tar -xzf "dist/${STAGE}.tar.gz" -C dist
-          "dist/${STAGE}/hostid" --version | grep -F "$VERSION"
-          test -f "dist/${STAGE}/man/hostid.1"
+          "dist/${STAGE}/host-identity" --version | grep -F "$VERSION"
+          test -f "dist/${STAGE}/man/host-identity.1"
           test -s "dist/${STAGE}/THIRD-PARTY-LICENSES.md"
 
   smoke-windows:
@@ -827,12 +827,12 @@ jobs:
           Set-Location dist
           $zip = Get-ChildItem *.zip | Select-Object -First 1
           Expand-Archive $zip.FullName -DestinationPath extracted
-          $exe = Get-ChildItem -Recurse extracted -Filter hostid.exe | Select-Object -First 1
+          $exe = Get-ChildItem -Recurse extracted -Filter host-identity.exe | Select-Object -First 1
           $out = & $exe.FullName --version
           if ($out -notmatch [regex]::Escape($env:VERSION)) {
             throw "version mismatch: $out"
           }
-          if (-not (Get-ChildItem -Recurse extracted -Filter hostid.1)) {
+          if (-not (Get-ChildItem -Recurse extracted -Filter host-identity.1)) {
             throw "man page missing from zip"
           }
           # $tpl is a FileInfo; .Length on FileInfo is file size in bytes.
@@ -882,7 +882,7 @@ jobs:
           mkdir -p release
           # Every artefact's contents move to the top of release/. Duplicate
           # file names across artefacts would collide, but our naming
-          # scheme (`hostid-<ver>-<target>.<ext>`, APKBUILD.<arch>) is
+          # scheme (`host-identity-<ver>-<target>.<ext>`, APKBUILD.<arch>) is
           # collision-free by construction. release-notes.md is
           # explicitly excluded — it's consumed by the publish step as
           # `body_path` and must not appear in SHA256SUMS (it isn't
@@ -1002,8 +1002,8 @@ jobs:
           VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           set -eu
-          get() { sha256sum "release/hostid-${VERSION}-$1.tar.gz" | awk '{print $1}'; }
-          getzip() { sha256sum "release/hostid-${VERSION}-$1.zip" | awk '{print $1}'; }
+          get() { sha256sum "release/host-identity-${VERSION}-$1.tar.gz" | awk '{print $1}'; }
+          getzip() { sha256sum "release/host-identity-${VERSION}-$1.zip" | awk '{print $1}'; }
           {
             echo "macos_aarch64=$(get aarch64-apple-darwin)"
             echo "win_x86_64=$(getzip x86_64-pc-windows-msvc)"
@@ -1019,7 +1019,7 @@ jobs:
           set -eu
           sed -e "s|@@VERSION@@|${VERSION}|g" \
               -e "s|@@SHA256_AARCH64@@|${MACOS_AARCH64}|g" \
-              packaging/homebrew/hostid.rb.tmpl > hostid.rb
+              packaging/homebrew/host-identity.rb.tmpl > host-identity.rb
 
       # Git clone with token header rather than embedded URL credential —
       # keeps the PAT out of the clone's .git/config.
@@ -1038,15 +1038,15 @@ jobs:
           AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$HOMEBREW_TAP_TOKEN" | base64 -w0)"
           git -c "http.extraheader=$AUTH_HEADER" clone "$REPO" tap
           mkdir -p tap/Formula
-          cp hostid.rb tap/Formula/hostid.rb
+          cp host-identity.rb tap/Formula/host-identity.rb
           cd tap
           git config user.name "host-identity release bot"
           git config user.email "release-bot@host-identity"
-          git add Formula/hostid.rb
+          git add Formula/host-identity.rb
           if git diff --cached --quiet; then
             echo "Formula unchanged — skipping push"
           else
-            git commit -m "hostid ${VERSION}"
+            git commit -m "host-identity ${VERSION}"
             git -c "http.extraheader=$AUTH_HEADER" push origin HEAD
           fi
 
@@ -1061,7 +1061,7 @@ jobs:
           sed -e "s|@@VERSION@@|${VERSION}|g" \
               -e "s|@@SHA256_X86_64@@|${WIN_X86_64}|g" \
               -e "s|@@SHA256_AARCH64@@|${WIN_AARCH64}|g" \
-              packaging/scoop/hostid.json.in > hostid.json
+              packaging/scoop/host-identity.json.in > host-identity.json
 
       - name: Push Scoop manifest to bucket repo
         if: needs.preflight.outputs.prerelease != 'true'
@@ -1078,15 +1078,15 @@ jobs:
           AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$SCOOP_BUCKET_TOKEN" | base64 -w0)"
           git -c "http.extraheader=$AUTH_HEADER" clone "$REPO" bucket
           mkdir -p bucket/bucket
-          cp hostid.json bucket/bucket/hostid.json
+          cp host-identity.json bucket/bucket/host-identity.json
           cd bucket
           git config user.name "host-identity release bot"
           git config user.email "release-bot@host-identity"
-          git add bucket/hostid.json
+          git add bucket/host-identity.json
           if git diff --cached --quiet; then
             echo "Manifest unchanged — skipping push"
           else
-            git commit -m "hostid ${VERSION}"
+            git commit -m "host-identity ${VERSION}"
             git -c "http.extraheader=$AUTH_HEADER" push origin HEAD
           fi
 
@@ -1174,7 +1174,7 @@ jobs:
         run: |
           set -eu
           mkdir verify && cd verify
-          ART="hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          ART="host-identity-${VERSION}-x86_64-unknown-linux-musl.tar.gz"
           gh release download "$TAG" -R "${{ github.repository }}" \
             -p "$ART" -p SHA256SUMS -p SHA256SUMS.minisig
       - name: Verify minisign signature and checksum
@@ -1184,7 +1184,7 @@ jobs:
           set -eu
           cd verify
           minisign -Vm SHA256SUMS -p ../minisign.pub
-          grep "hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz" SHA256SUMS \
+          grep "host-identity-${VERSION}-x86_64-unknown-linux-musl.tar.gz" SHA256SUMS \
             | sha256sum -c
       - name: Verify SLSA provenance
         env:
@@ -1193,5 +1193,5 @@ jobs:
         run: |
           set -eu
           cd verify
-          gh attestation verify "hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+          gh attestation verify "host-identity-${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
             -R "${{ github.repository }}"

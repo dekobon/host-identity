@@ -1,6 +1,6 @@
 # Packaging
 
-Reference for anyone producing a `hostid` build artefact — whether you
+Reference for anyone producing a `host-identity` build artefact — whether you
 are packaging for a distro, rolling a private internal build, or
 debugging why a release-workflow stage failed. End users looking for
 install instructions want the [README's *Install*
@@ -18,13 +18,13 @@ section](../README.md#install) instead.
 
 ## Build artefacts
 
-A full `hostid` build ships three kinds of files:
+A full `host-identity` build ships three kinds of files:
 
 | Artefact        | Source                                                         |
 | --------------- | -------------------------------------------------------------- |
-| Binary          | `cargo build --release -p host-identity-cli` → `target/<target>/release/hostid` |
-| Man pages       | `man/hostid.1`, `man/hostid-resolve.1`, `man/hostid-audit.1`, `man/hostid-sources.1` (committed; regenerate with `cargo xtask`) |
-| Debug symbols   | `target/<target>/release/hostid.dbg` (Unix, via `objcopy --only-keep-debug`) or `hostid.pdb` (Windows) |
+| Binary          | `cargo build --release -p host-identity-cli` → `target/<target>/release/host-identity` |
+| Man pages       | `man/host-identity.1`, `man/host-identity-resolve.1`, `man/host-identity-audit.1`, `man/host-identity-sources.1` (committed; regenerate with `cargo xtask`) |
+| Debug symbols   | `target/<target>/release/host-identity.dbg` (Unix, via `objcopy --only-keep-debug`) or `host-identity.pdb` (Windows) |
 | Third-party licenses | `THIRD-PARTY-LICENSES.md` — generated from [`about.toml`](../about.toml) and [`about.hbs`](../about.hbs) by `cargo about generate` per target |
 
 The committed `.1` files are the source of truth for distribution;
@@ -36,18 +36,18 @@ the regenerated pages.
 ## Standard install layout
 
 ```bash
-install -Dm755 target/release/hostid "$PREFIX/bin/hostid"
-install -Dm644 man/hostid.1          "$PREFIX/share/man/man1/hostid.1"
-install -Dm644 man/hostid-resolve.1  "$PREFIX/share/man/man1/hostid-resolve.1"
-install -Dm644 man/hostid-audit.1    "$PREFIX/share/man/man1/hostid-audit.1"
-install -Dm644 man/hostid-sources.1  "$PREFIX/share/man/man1/hostid-sources.1"
-install -Dm644 LICENSE-APACHE        "$PREFIX/share/doc/hostid/LICENSE-APACHE"
-install -Dm644 LICENSE-MIT           "$PREFIX/share/doc/hostid/LICENSE-MIT"
-install -Dm644 THIRD-PARTY-LICENSES.md "$PREFIX/share/doc/hostid/THIRD-PARTY-LICENSES.md"
+install -Dm755 target/release/host-identity "$PREFIX/bin/host-identity"
+install -Dm644 man/host-identity.1          "$PREFIX/share/man/man1/host-identity.1"
+install -Dm644 man/host-identity-resolve.1  "$PREFIX/share/man/man1/host-identity-resolve.1"
+install -Dm644 man/host-identity-audit.1    "$PREFIX/share/man/man1/host-identity-audit.1"
+install -Dm644 man/host-identity-sources.1  "$PREFIX/share/man/man1/host-identity-sources.1"
+install -Dm644 LICENSE-APACHE        "$PREFIX/share/doc/host-identity/LICENSE-APACHE"
+install -Dm644 LICENSE-MIT           "$PREFIX/share/doc/host-identity/LICENSE-MIT"
+install -Dm644 THIRD-PARTY-LICENSES.md "$PREFIX/share/doc/host-identity/THIRD-PARTY-LICENSES.md"
 ```
 
 `THIRD-PARTY-LICENSES.md` carries the attributions for every crate
-linked into the `hostid` binary. It is generated from
+linked into the `host-identity` binary. It is generated from
 [`about.toml`](../about.toml) (license allowlist + target list) and
 [`about.hbs`](../about.hbs) (Markdown template) by `cargo-about`
 during the release workflow's `build` stage. Packagers producing an
@@ -62,7 +62,7 @@ cargo about generate --locked \
 
 FreeBSD packages install under `/usr/local/` rather than `/usr/`; see
 [`packaging/freebsd/port/`](../packaging/freebsd) for the canonical
-prefix and license-file placement (`share/licenses/hostid/`).
+prefix and license-file placement (`share/licenses/host-identity/`).
 
 ## Man pages
 
@@ -136,14 +136,14 @@ ports tree.
 
 ### Homebrew
 
-[`packaging/homebrew/hostid.rb.tmpl`](../packaging/homebrew) is pushed
+[`packaging/homebrew/host-identity.rb.tmpl`](../packaging/homebrew) is pushed
 to the external `homebrew-host-identity` tap with the per-target
 tarball SHA-256s substituted in. The formula installs both `amd64`
 and `arm64` bottles.
 
 ### Scoop
 
-[`packaging/scoop/hostid.json.in`](../packaging/scoop) is pushed to the
+[`packaging/scoop/host-identity.json.in`](../packaging/scoop) is pushed to the
 external `scoop-bucket` repo. Covers `x86_64` and `arm64` on Windows.
 
 ## Signing and provenance

@@ -15,7 +15,10 @@ name = "host_identity_cli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "hostid"
+# Renamed from `hostid` to avoid colliding with coreutils `hostid(1)`
+# (numeric host identifier from gethostid(3)), which ships on every
+# Linux distro and the BSDs.
+name = "host-identity"
 path = "src/main.rs"
 
 [features]
@@ -56,7 +59,7 @@ workspace = true
 # workspace (binary under target/<triple>/release/, man pages under
 # man/).
 [package.metadata.deb]
-name = "hostid"
+name = "host-identity"
 section = "utils"
 priority = "optional"
 extended-description = """\
@@ -68,32 +71,32 @@ container identifiers, Kubernetes node/pod UIDs) and returning the
 first one that proves the host's identity.\
 """
 assets = [
-    ["target/release/hostid", "usr/bin/", "755"],
-    ["../../man/hostid.1", "usr/share/man/man1/", "644"],
-    ["../../man/hostid-audit.1", "usr/share/man/man1/", "644"],
-    ["../../man/hostid-resolve.1", "usr/share/man/man1/", "644"],
-    ["../../man/hostid-sources.1", "usr/share/man/man1/", "644"],
-    ["../../README.md", "usr/share/doc/hostid/README.md", "644"],
-    ["../../LICENSE-APACHE", "usr/share/doc/hostid/LICENSE-APACHE", "644"],
-    ["../../LICENSE-MIT", "usr/share/doc/hostid/LICENSE-MIT", "644"],
-    ["../../THIRD-PARTY-LICENSES.md", "usr/share/doc/hostid/THIRD-PARTY-LICENSES.md", "644"],
+    ["target/release/host-identity", "usr/bin/", "755"],
+    ["../../man/host-identity.1", "usr/share/man/man1/", "644"],
+    ["../../man/host-identity-audit.1", "usr/share/man/man1/", "644"],
+    ["../../man/host-identity-resolve.1", "usr/share/man/man1/", "644"],
+    ["../../man/host-identity-sources.1", "usr/share/man/man1/", "644"],
+    ["../../README.md", "usr/share/doc/host-identity/README.md", "644"],
+    ["../../LICENSE-APACHE", "usr/share/doc/host-identity/LICENSE-APACHE", "644"],
+    ["../../LICENSE-MIT", "usr/share/doc/host-identity/LICENSE-MIT", "644"],
+    ["../../THIRD-PARTY-LICENSES.md", "usr/share/doc/host-identity/THIRD-PARTY-LICENSES.md", "644"],
 ]
 
 # RHEL/Rocky/Fedora/Amazon Linux packaging — consumed by
 # `cargo generate-rpm` in release CI.
 [package.metadata.generate-rpm]
-name = "hostid"
+name = "host-identity"
 summary = "Stable host UUID across platforms, clouds, and Kubernetes"
 license = "Apache-2.0 OR MIT"
 assets = [
-    { source = "target/release/hostid", dest = "/usr/bin/hostid", mode = "755" },
-    { source = "man/hostid.1", dest = "/usr/share/man/man1/hostid.1", mode = "644", doc = true },
-    { source = "man/hostid-audit.1", dest = "/usr/share/man/man1/hostid-audit.1", mode = "644", doc = true },
-    { source = "man/hostid-resolve.1", dest = "/usr/share/man/man1/hostid-resolve.1", mode = "644", doc = true },
-    { source = "man/hostid-sources.1", dest = "/usr/share/man/man1/hostid-sources.1", mode = "644", doc = true },
-    { source = "README.md", dest = "/usr/share/doc/hostid/README.md", mode = "644", doc = true },
-    { source = "LICENSE-APACHE", dest = "/usr/share/doc/hostid/LICENSE-APACHE", mode = "644", doc = true },
-    { source = "LICENSE-MIT", dest = "/usr/share/doc/hostid/LICENSE-MIT", mode = "644", doc = true },
-    { source = "THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/hostid/THIRD-PARTY-LICENSES.md", mode = "644", doc = true },
+    { source = "target/release/host-identity", dest = "/usr/bin/host-identity", mode = "755" },
+    { source = "man/host-identity.1", dest = "/usr/share/man/man1/host-identity.1", mode = "644", doc = true },
+    { source = "man/host-identity-audit.1", dest = "/usr/share/man/man1/host-identity-audit.1", mode = "644", doc = true },
+    { source = "man/host-identity-resolve.1", dest = "/usr/share/man/man1/host-identity-resolve.1", mode = "644", doc = true },
+    { source = "man/host-identity-sources.1", dest = "/usr/share/man/man1/host-identity-sources.1", mode = "644", doc = true },
+    { source = "README.md", dest = "/usr/share/doc/host-identity/README.md", mode = "644", doc = true },
+    { source = "LICENSE-APACHE", dest = "/usr/share/doc/host-identity/LICENSE-APACHE", mode = "644", doc = true },
+    { source = "LICENSE-MIT", dest = "/usr/share/doc/host-identity/LICENSE-MIT", mode = "644", doc = true },
+    { source = "THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/host-identity/THIRD-PARTY-LICENSES.md", mode = "644", doc = true },
 ]
 auto-req = "disabled"

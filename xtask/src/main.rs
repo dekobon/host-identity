@@ -1,5 +1,5 @@
 //! Workspace task runner. Today it only generates man pages for the
-//! `hostid` CLI; extend with more `cargo xtask <thing>` subcommands as
+//! `host-identity` CLI; extend with more `cargo xtask <thing>` subcommands as
 //! the project needs them.
 #![allow(missing_docs)]
 #![allow(clippy::pedantic)]
@@ -47,8 +47,8 @@ fn render_man_page(cmd: &clap::Command, out_dir: &Path) -> io::Result<()> {
     let man = clap_mangen::Man::new(cmd.clone())
         .title(name.to_uppercase())
         .section("1")
-        .source(format!("hostid {}", host_identity_cli::VERSION))
-        .manual("hostid Manual".to_string());
+        .source(format!("host-identity {}", host_identity_cli::VERSION))
+        .manual("host-identity Manual".to_string());
 
     let mut buffer = Vec::<u8>::new();
     man.render(&mut buffer)?;

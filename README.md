@@ -36,12 +36,12 @@ Network-backed identity sources are generic over an `HttpTransport`
 trait; the crate ships no HTTP client, so it slots into whatever stack
 you already run on.
 
-A `hostid` CLI is published as a separate binary crate:
+A `host-identity` CLI is published as a separate binary crate:
 
 ```bash
 cargo install host-identity-cli
-hostid                       # print the resolved UUID
-hostid audit                 # show what every identity source produced
+host-identity                       # print the resolved UUID
+host-identity audit                 # show what every identity source produced
 ```
 
 ## Why not `machine-uid` or a one-liner?
@@ -107,7 +107,7 @@ for the problem statement in full and the API surface, and
 | Crate                                                         | Purpose                                                            |
 | ------------------------------------------------------------- | ------------------------------------------------------------------ |
 | [`host-identity`](crates/host-identity)                       | Library: composable identity-source chain that resolves to a UUID. |
-| [`host-identity-cli`](crates/host-identity-cli) (`hostid`)    | Command-line wrapper over the library.                             |
+| [`host-identity-cli`](crates/host-identity-cli) (`host-identity`) | Command-line wrapper over the library.                         |
 
 ## Install
 
@@ -117,19 +117,20 @@ packages for the common desktop/server targets to
 
 | Platform               | Install                                                                      |
 | ---------------------- | ---------------------------------------------------------------------------- |
-| Debian / Ubuntu        | `apt install ./hostid_<ver>_amd64.deb` (or `arm64`)                          |
-| RHEL / Rocky / Fedora / Amazon Linux | `dnf install ./hostid-<ver>-1.x86_64.rpm` (or `aarch64`)       |
-| Alpine                 | `apk add --allow-untrusted ./hostid-<ver>-r0.apk`                            |
-| FreeBSD (amd64)        | `pkg install ./hostid-<ver>.pkg`                                             |
-| macOS (Apple Silicon)  | `brew install dekobon/host-identity/hostid`                                  |
+| Debian / Ubuntu        | `apt install ./host-identity_<ver>_amd64.deb` (or `arm64`)                   |
+| RHEL / Rocky / Fedora / Amazon Linux | `dnf install ./host-identity-<ver>-1.x86_64.rpm` (or `aarch64`) |
+| Alpine                 | `apk add --allow-untrusted ./host-identity-<ver>-r0.apk`                     |
+| FreeBSD (amd64)        | `pkg install ./host-identity-<ver>.pkg`                                      |
+| macOS (Apple Silicon)  | `brew install dekobon/host-identity/host-identity`                           |
 | macOS (Intel)          | `cargo install host-identity-cli` (no prebuilt binary — Rosetta 2 works too) |
-| Windows (x86_64 / arm64) | `scoop install hostid` (after `scoop bucket add dekobon https://github.com/dekobon/scoop-bucket`) |
-| Portable (Linux / macOS / Windows) | Download `hostid-<ver>-<target>.tar.gz` / `.zip` and extract    |
+| Windows (x86_64 / arm64) | `scoop install host-identity` (after `scoop bucket add dekobon https://github.com/dekobon/scoop-bucket`) |
+| Portable (Linux / macOS / Windows) | Download `host-identity-<ver>-<target>.tar.gz` / `.zip` and extract |
 | From source            | `cargo install host-identity-cli`                                            |
 
-Every package installs the binary at `hostid` and the man pages
-(`hostid(1)`, `hostid-resolve(1)`, `hostid-audit(1)`,
-`hostid-sources(1)`) under the distro's standard `man1/` directory.
+Every package installs the binary at `host-identity` and the man
+pages (`host-identity(1)`, `host-identity-resolve(1)`,
+`host-identity-audit(1)`, `host-identity-sources(1)`) under the
+distro's standard `man1/` directory.
 
 Release artefacts are signed. Verify with `minisign` against the
 committed [`minisign.pub`](minisign.pub) and with GitHub's SLSA
@@ -137,7 +138,7 @@ attestations:
 
 ```bash
 minisign -Vm SHA256SUMS -p minisign.pub
-gh attestation verify hostid-<ver>-<target>.tar.gz -R dekobon/host-identity
+gh attestation verify host-identity-<ver>-<target>.tar.gz -R dekobon/host-identity
 ```
 
 Gaps on v1: FreeBSD `aarch64` is not prebuilt (tier-3 Rust target) —
@@ -146,7 +147,7 @@ is not prebuilt because GitHub's `macos-13` runner pool made releases
 unreliable; install via `cargo install host-identity-cli` or run the
 Apple-silicon build under Rosetta 2. macOS direct-download tarballs
 are unsigned/unnotarized; if Gatekeeper quarantines them, run
-`xattr -d com.apple.quarantine ./hostid` once. Homebrew installs are
+`xattr -d com.apple.quarantine ./host-identity` once. Homebrew installs are
 unaffected.
 
 ## Packaging

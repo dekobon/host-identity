@@ -17,7 +17,7 @@ One push of a `v*` tag runs this end-to-end:
    parity, confirms `minisign.pub` is not the placeholder, regenerates
    man pages and fails if they drift, extracts the matching
    `CHANGELOG.md` section as release notes.
-2. **build** — cross-compiles `hostid` for nine targets (Linux
+2. **build** — cross-compiles `host-identity` for nine targets (Linux
    gnu/musl x86_64+aarch64, FreeBSD x86_64, macOS x86_64+aarch64,
    Windows x86_64+aarch64). Strips binaries, captures debug symbols,
    runs `cargo about generate` against
@@ -29,7 +29,7 @@ One push of a `v*` tag runs this end-to-end:
 4. **smoke-*** — installs each package inside the appropriate
    container/VM (Ubuntu 22.04/24.04, Debian 12, Rocky 9, Fedora,
    Amazon Linux 2023, Alpine 3.20, FreeBSD 14, macOS 13+latest,
-   Windows) and asserts `hostid --version` matches the tag.
+   Windows) and asserts `host-identity --version` matches the tag.
 5. **sign-attest** — flattens every artefact into `release/`,
    generates CycloneDX SBOMs, computes `SHA256SUMS`, signs it with
    minisign, and attaches SLSA build provenance.
@@ -161,7 +161,7 @@ publish.
 `publish-crates` runs in parallel with `publish` (tap/bucket).
 One failure mode to be aware of: if the external package-manager
 pushes succeed but the crates.io publish fails (token issue,
-registry outage), `brew install hostid` will get the new version
+registry outage), `brew install host-identity` will get the new version
 while `cargo install host-identity-cli` will not until the job is
 re-run. Re-running on the same tag is safe — both jobs are
 idempotent — but noticing the gap is on you. The alternative would
@@ -173,7 +173,7 @@ release stall, which we've judged to be the worse failure mode.
 
 The release pipeline is strict about version parity: the preflight
 job rejects the tag if it does not match the `host-identity-cli`
-Cargo version, and the smoke jobs reject the build if `hostid
+Cargo version, and the smoke jobs reject the build if `host-identity
 --version` does not contain the tag string. Bump the version
 deliberately, in one commit, before tagging.
 
@@ -352,7 +352,7 @@ Common failure signatures and what they mean:
 | `CHANGELOG.md has no section for [x.y.z]`       | The changelog heading is missing, mistyped, or not on `main`.         |
 | `Committed man pages drift from clap schema`    | Run `cargo xtask` locally and commit `man/`.                          |
 | `minisign.pub is still the committed placeholder` | Set up the minisign key per the prerequisites above.                |
-| Smoke test `hostid --version` mismatch          | The binary built from the tag reports a different version. Usually the tag points at a commit older than the version bump, or a previous run left overlapping assets on the release that `softprops/action-gh-release` picked up. |
+| Smoke test `host-identity --version` mismatch          | The binary built from the tag reports a different version. Usually the tag points at a commit older than the version bump, or a previous run left overlapping assets on the release that `softprops/action-gh-release` picked up. |
 | `MINISIGN_SECRET_KEY not configured`            | Repo secret missing.                                                  |
 
 ## Post-release verification
@@ -368,24 +368,24 @@ Verify manually if you want extra assurance:
 TAG=v0.2.0
 VERSION=0.2.0
 gh release download "$TAG" -R dekobon/host-identity \
-  -p "hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+  -p "host-identity-${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
   -p SHA256SUMS -p SHA256SUMS.minisig
 
 # Fetch minisign.pub from the tag, not main — if the key was rotated
 # after this release, main has a different key and verification fails.
 curl -fsSLO "https://raw.githubusercontent.com/dekobon/host-identity/${TAG}/minisign.pub"
 minisign -Vm SHA256SUMS -p minisign.pub
-grep "hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz" SHA256SUMS | sha256sum -c
-gh attestation verify "hostid-${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+grep "host-identity-${VERSION}-x86_64-unknown-linux-musl.tar.gz" SHA256SUMS | sha256sum -c
+gh attestation verify "host-identity-${VERSION}-x86_64-unknown-linux-musl.tar.gz" \
   -R dekobon/host-identity
 ```
 
 Check that the downstream package managers updated:
 
 - Homebrew tap: new commit on `dekobon/homebrew-host-identity`
-  bumping `Formula/hostid.rb`.
+  bumping `Formula/host-identity.rb`.
 - Scoop bucket: new commit on `dekobon/scoop-bucket` bumping
-  `bucket/hostid.json`.
+  `bucket/host-identity.json`.
 
 ## Fixing a broken release
 

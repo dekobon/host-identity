@@ -1,4 +1,7 @@
-//! `hostid` — command-line interface for the `host-identity` crate.
+//! `host-identity` — command-line interface for the `host-identity` crate.
+//! Binary was renamed from `hostid` to avoid colliding with coreutils
+//! `hostid(1)`; see `crates/host-identity-cli/Cargo.toml` for the
+//! `[[bin]]` name and the rationale.
 //!
 //! This crate also exposes a small library surface so build tooling
 //! (the workspace `xtask` that generates man pages) can reuse the
@@ -27,7 +30,7 @@ const LONG_ABOUT: &str = "\
 Resolve a stable, collision-resistant host UUID across platforms, container \
 runtimes, cloud providers, and Kubernetes.
 
-hostid walks a platform-appropriate chain of identity sources (env override, \
+host-identity walks a platform-appropriate chain of identity sources (env override, \
 /etc/machine-id, DMI, cloud metadata, Kubernetes pod UID, …) and returns the \
 first one that produces a credible identifier. Cloned-VM sentinels, empty \
 files, and systemd's literal `uninitialized` string are rejected rather than \
@@ -44,29 +47,29 @@ binary built with the `network` feature.";
 const EXAMPLES: &str = "\
 EXAMPLES:
     Print the host UUID using the default local source chain:
-        hostid
+        host-identity
 
     Include cloud-metadata and Kubernetes sources:
-        hostid resolve --network
+        host-identity resolve --network
 
     Build a custom chain from explicit source identifiers:
-        hostid resolve --sources env-override,machine-id,dmi
+        host-identity resolve --sources env-override,machine-id,dmi
 
     Emit machine-readable output:
-        hostid resolve --format json
-        hostid audit --format json
+        host-identity resolve --format json
+        host-identity audit --format json
 
     Pin identity via environment override:
-        HOST_IDENTITY=11111111-2222-3333-4444-555555555555 hostid
+        HOST_IDENTITY=11111111-2222-3333-4444-555555555555 host-identity
 
     List every source identifier compiled into this binary:
-        hostid sources
+        host-identity sources
 ";
 
-/// Top-level command-line interface for the `hostid` binary.
+/// Top-level command-line interface for the `host-identity` binary.
 #[derive(Parser)]
 #[command(
-    name = "hostid",
+    name = "host-identity",
     version,
     author,
     about = "Resolve a stable host UUID across platforms, clouds, and Kubernetes",
@@ -79,7 +82,7 @@ pub struct Cli {
     command: Option<Command>,
 
     /// Top-level flags apply only when no subcommand is given (they are
-    /// shorthand for `hostid resolve ...`).
+    /// shorthand for `host-identity resolve ...`).
     #[command(flatten)]
     resolve: ResolveArgs,
 }
@@ -109,7 +112,7 @@ struct ResolveArgs {
     wrap: WrapArg,
 
     /// Comma-separated source identifiers to build a custom chain
-    /// (see `hostid sources`). Combine with `--network` to include
+    /// (see `host-identity sources`). Combine with `--network` to include
     /// cloud-metadata sources in the chain.
     #[arg(long, value_delimiter = ',')]
     sources: Vec<String>,
@@ -213,14 +216,14 @@ pub fn run() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             let code = err.exit_code();
-            eprintln!("hostid: {:#}", err.into_inner());
+            eprintln!("host-identity: {:#}", err.into_inner());
             code
         }
     }
 }
 
 /// Write to stdout, collapsing `BrokenPipe` into a clean exit.
-/// Without this, piping `hostid audit | head` panics.
+/// Without this, piping `host-identity audit | head` panics.
 fn write_and_flush(bytes: &[u8]) -> io::Result<()> {
     let stdout = io::stdout();
     let mut lock = stdout.lock();
@@ -650,7 +653,7 @@ mod tests {
 
     #[test]
     fn host_id_json_schema_is_stable() {
-        // Pins the `--format json` schema for `hostid resolve`. Any field
+        // Pins the `--format json` schema for `host-identity resolve`. Any field
         // rename or case change breaks downstream script parsers; this
         // snapshot catches that at test time.
         let sample = HostIdJson {

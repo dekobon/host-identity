@@ -1,6 +1,6 @@
-name: hostid
+name: host-identity
 version: "@@VERSION@@"
-origin: sysutils/hostid
+origin: sysutils/host-identity
 comment: "Stable host UUID across platforms, clouds, and Kubernetes"
 arch: "FreeBSD:14:amd64"
 www: "https://github.com/dekobon/host-identity"

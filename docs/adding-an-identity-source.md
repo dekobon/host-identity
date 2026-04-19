@@ -406,7 +406,7 @@ imports` warning or compile error that only fires on one OS is easy
 to miss otherwise.
 
 If you touched the CLI (`available_source_ids`, feature flags, or
-anything surfaced by `hostid sources`), run:
+anything surfaced by `host-identity sources`), run:
 
 ```bash
 cargo run -p host-identity-cli -- sources
