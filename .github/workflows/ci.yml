@@ -146,33 +146,5 @@ jobs:
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
 
-  sbom:
-    name: sbom (release)
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [ci]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-cyclonedx
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-cyclonedx
-      - name: Generate CycloneDX SBOMs
-        run: cargo cyclonedx --format json --all --describe crate --spec-version 1.5
-      - name: Stage SBOM artifacts
-        run: |
-          mkdir -p sbom
-          cp crates/host-identity/host-identity.cdx.json sbom/
-          cp crates/host-identity-cli/host-identity-cli.cdx.json sbom/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sbom
-          path: sbom/*.cdx.json
-      - name: Attach SBOMs to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: sbom/*.cdx.json
+# Release-time SBOM generation, binary builds, packaging, signing, and
+# publishing live in .github/workflows/release.yml (triggered on v* tags).

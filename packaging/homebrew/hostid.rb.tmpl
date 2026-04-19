@@ -1,0 +1,34 @@
+# typed: false
+# frozen_string_literal: true
+
+# Rendered by .github/workflows/release.yml on each v* tag.
+# Tokens substituted: @@VERSION@@, @@SHA256_X86_64@@, @@SHA256_AARCH64@@.
+class Hostid < Formula
+  desc "Stable host UUID across platforms, clouds, and Kubernetes"
+  homepage "https://github.com/dekobon/host-identity"
+  version "@@VERSION@@"
+  license any_of: ["Apache-2.0", "MIT"]
+
+  # macOS-only tap. Linux users install via their distro package
+  # (apt/dnf/apk) — see the README install table.
+  on_macos do
+    on_arm do
+      url "https://github.com/dekobon/host-identity/releases/download/v#{version}/hostid-#{version}-aarch64-apple-darwin.tar.gz"
+      sha256 "@@SHA256_AARCH64@@"
+    end
+    on_intel do
+      url "https://github.com/dekobon/host-identity/releases/download/v#{version}/hostid-#{version}-x86_64-apple-darwin.tar.gz"
+      sha256 "@@SHA256_X86_64@@"
+    end
+  end
+
+  def install
+    bin.install "hostid"
+    man1.install Dir["man/*.1"]
+    doc.install "README.md", "LICENSE-APACHE", "LICENSE-MIT"
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/hostid --version")
+  end
+end

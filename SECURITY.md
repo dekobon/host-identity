@@ -78,6 +78,33 @@ We follow **coordinated disclosure**. Once a fix is available:
 We ask that reporters give us a reasonable window (typically 90 days)
 to release a fix before public disclosure.
 
+## Verifying release artefacts
+
+Every `v*` tag publishes signed release artefacts to
+[GitHub Releases](https://github.com/dekobon/host-identity/releases).
+
+- **`SHA256SUMS`** — SHA-256 hashes of every artefact in the release.
+- **`SHA256SUMS.minisig`** — [minisign](https://jedisct1.github.io/minisign/)
+  signature over `SHA256SUMS`. Verify with the committed
+  [`minisign.pub`](minisign.pub):
+
+  ```
+  minisign -Vm SHA256SUMS -p minisign.pub
+  grep <artefact> SHA256SUMS | sha256sum -c
+  ```
+
+- **SLSA build provenance** — every artefact has a GitHub-signed
+  provenance attestation. Verify with the `gh` CLI:
+
+  ```
+  gh attestation verify <artefact> -R dekobon/host-identity
+  ```
+
+- **CycloneDX SBOM** — `*.cdx.json` for both the library and the CLI.
+
+If either signature check fails, do **not** install the artefact —
+file a security report via the channels above.
+
 ## Scope
 
 This policy covers vulnerabilities in the code of this crate itself.

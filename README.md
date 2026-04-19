@@ -71,6 +71,40 @@ for the problem statement in full and the API surface, and
 | [`host-identity`](crates/host-identity)                       | Library: composable source chain that resolves to a UUID. |
 | [`host-identity-cli`](crates/host-identity-cli) (`hostid`)    | Command-line wrapper over the library.                    |
 
+## Install
+
+Every release tag (`v*`) publishes prebuilt binaries and native
+packages for the common desktop/server targets to
+[GitHub Releases](https://github.com/dekobon/host-identity/releases).
+
+| Platform               | Install                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| Debian / Ubuntu        | `apt install ./hostid_<ver>_amd64.deb` (or `arm64`)                          |
+| RHEL / Rocky / Fedora / Amazon Linux | `dnf install ./hostid-<ver>-1.x86_64.rpm` (or `aarch64`)       |
+| Alpine                 | `apk add --allow-untrusted ./hostid-<ver>-r0.apk`                            |
+| FreeBSD (amd64)        | `pkg install ./hostid-<ver>.pkg`                                             |
+| macOS (Intel + Apple Silicon) | `brew install dekobon/host-identity/hostid`                           |
+| Windows (x86_64 / arm64) | `scoop install hostid` (after `scoop bucket add dekobon https://github.com/dekobon/scoop-bucket`) or `winget install dekobon.hostid` |
+| Portable (Linux / macOS / Windows) | Download `hostid-<ver>-<target>.tar.gz` / `.zip` and extract    |
+| From source            | `cargo install host-identity-cli`                                            |
+
+Every package installs the binary at `hostid` and the man pages
+(`hostid(1)`, `hostid-resolve(1)`, `hostid-audit(1)`,
+`hostid-sources(1)`) under the distro's standard `man1/` directory.
+
+Release artefacts are signed. Verify with `minisign` against the
+committed [`minisign.pub`](minisign.pub) and with GitHub's SLSA
+attestations:
+
+    minisign -Vm SHA256SUMS -p minisign.pub
+    gh attestation verify hostid-<ver>-<target>.tar.gz -R dekobon/host-identity
+
+Gaps on v1: FreeBSD `aarch64` is not prebuilt (tier-3 Rust target) —
+use `cargo install` or the FreeBSD ports tree. macOS direct-download
+tarballs are unsigned/unnotarized; if Gatekeeper quarantines them,
+run `xattr -d com.apple.quarantine ./hostid` once. Homebrew installs
+are unaffected.
+
 ## Packaging
 
 Build artifacts the `hostid` CLI ships:

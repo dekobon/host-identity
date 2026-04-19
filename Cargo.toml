@@ -19,3 +19,11 @@ missing_docs = "warn"
 pedantic = { level = "warn", priority = -1 }
 module_name_repetitions = "allow"
 missing_errors_doc = "allow"
+
+# Keep line tables in release builds so dsymutil/objcopy can produce
+# meaningful backtraces from a released `hostid` binary. Release CI
+# splits these into separate debug-symbol artefacts and strips the
+# primary binary before shipping; local `cargo install` users get a
+# slightly larger binary with line-level panic backtraces.
+[profile.release]
+debug = "line-tables-only"
