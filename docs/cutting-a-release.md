@@ -93,13 +93,68 @@ Releases (for stable versions) push to:
 
 Both tap and bucket repos must exist and accept the configured PAT.
 
+## Bumping the version
+
+The release pipeline is strict about version parity: the preflight
+job rejects the tag if it does not match the `host-identity-cli`
+Cargo version, and the smoke jobs reject the build if `hostid
+--version` does not contain the tag string. Bump the version
+deliberately, in one commit, before tagging.
+
+The publishable crates inherit their version from
+`[workspace.package]`, so there are three places to edit:
+
+1. Root `Cargo.toml`, `[workspace.package] version = "x.y.z"` — the
+   canonical version that every member crate picks up via
+   `version.workspace = true`.
+2. Root `Cargo.toml`, `[workspace.dependencies] host-identity = {
+   path = "...", version = "x.y.z", ... }` — the internal dependency
+   declaration used when `host-identity-cli` pulls in the library.
+   This must match the workspace version, otherwise `cargo publish`
+   on the CLI will reject the dependency.
+3. `xtask/Cargo.toml`, the `host-identity-cli = { version = "x.y",
+   path = "...", ... }` dependency. `xtask` is unpublished, but
+   because a version requirement is declared here it must stay
+   compatible with the workspace version — a stale `"0.1"` against a
+   bump to `1.0.0` will make `cargo update` fail to resolve. Use the
+   `major.minor` form (e.g. `"1.0"`), which Cargo treats as `^1.0`.
+
+After editing, regenerate the lockfile, regenerate the man pages
+(they embed the version string), and sanity-check the bump:
+
+```bash
+cargo update --workspace       # refreshes Cargo.lock with the new version
+cargo xtask                    # regenerates man/*.1 with the new version
+cargo metadata --format-version 1 --no-deps \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); \
+      print({p['name']: p['version'] for p in d['packages']})"
+# Expect both host-identity and host-identity-cli at the target version.
+```
+
+Pick the version using semver:
+
+- Breaking library API change → bump **major** (or minor while `0.x`).
+- New identity source, new CLI flag, new public API surface → bump
+  **minor**.
+- Bug fix, doc-only change, internal refactor → bump **patch**.
+
+Commit the version bump together with the changelog move (see below)
+so the release-prep commit is a single, self-contained change:
+
+```text
+chore(release): prepare v0.2.0
+```
+
 ## Pre-release checklist
 
 Before tagging, on `main`:
 
 - [ ] All intended changes are merged and CI is green.
-- [ ] `Cargo.toml` `[workspace.package] version` is bumped to the
-      target version (e.g. `0.2.0`).
+- [ ] Workspace version is bumped per
+      [Bumping the version](#bumping-the-version) — all three
+      `Cargo.toml` sites (workspace package, workspace dependency,
+      `xtask` path dep), plus a refreshed `Cargo.lock` and
+      regenerated `man/*.1`.
 - [ ] `crates/host-identity/CHANGELOG.md` has a `## [x.y.z]` section
       with the release notes. The header must match the tag exactly,
       minus the leading `v`. Move entries out of `## [Unreleased]`
