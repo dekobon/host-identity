@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0-rc1] - 2026-04-19
+
+Rehearsal pre-release of 1.0.0. Exercises the full release pipeline
+(build matrix, packaging, smoke tests, signing, SBOM, SLSA
+attestations, GitHub Release upload) end-to-end with the pre-release
+gate keeping Homebrew, Scoop, and crates.io pushes dormant. See the
+1.0.0 entry below for the feature surface being validated.
+
 ## [1.0.0] - 2026-04-19
 
 Initial stable release. The public API surface of the library

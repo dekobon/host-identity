@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 clap_mangen = "0.2"
-host-identity-cli = { version = "1.0", path = "../crates/host-identity-cli", default-features = false, features = ["container", "network"] }
+host-identity-cli = { version = "1.0.0-rc1", path = "../crates/host-identity-cli", default-features = false, features = ["container", "network"] }
 
 [lints]
 workspace = true

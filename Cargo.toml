@@ -3,14 +3,14 @@ resolver = "3"
 members = ["crates/host-identity", "crates/host-identity-cli", "xtask"]
 
 [workspace.package]
-version = "1.0.0"
+version = "1.0.0-rc1"
 edition = "2024"
 rust-version = "1.85"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/dekobon/host-identity"
 
 [workspace.dependencies]
-host-identity = { path = "crates/host-identity", version = "1.0.0", default-features = false }
+host-identity = { path = "crates/host-identity", version = "1.0.0-rc1", default-features = false }
 
 [workspace.lints.rust]
 missing_docs = "warn"
