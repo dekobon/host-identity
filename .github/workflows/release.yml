@@ -72,7 +72,7 @@ jobs:
 
       # Always check out the tag ref, not the event SHA. Critical for
       # workflow_dispatch where github.sha points at the branch HEAD.
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ steps.tag.outputs.tag }}
@@ -148,7 +148,7 @@ jobs:
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
           echo "ref=$TAG" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-notes
           path: release-notes.md
@@ -173,7 +173,7 @@ jobs:
           - { target: x86_64-pc-windows-msvc,     runner: windows-latest, cross: false }
           - { target: aarch64-pc-windows-msvc,    runner: windows-latest, cross: false }
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -185,7 +185,7 @@ jobs:
 
       - name: Install cross (Linux / FreeBSD cross-compile)
         if: matrix.cross
-        uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.62.23
         with:
           tool: cross@${{ env.CROSS_VERSION }}
 
@@ -282,7 +282,7 @@ jobs:
       # Archive (primary artefact). Uploading from a single flat dir
       # ensures the downloaded layout at Stage 4 is predictable:
       # merge-multiple leaves every file at the top of `release/`.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: archive-${{ matrix.target }}
           path: |
@@ -290,7 +290,7 @@ jobs:
             dist/*.zip
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: debug-${{ matrix.target }}
           path: dist/debug/
@@ -308,7 +308,7 @@ jobs:
           - { target: x86_64-unknown-linux-gnu,  deb_arch: amd64 }
           - { target: aarch64-unknown-linux-gnu, deb_arch: arm64 }
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -318,7 +318,7 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           targets: ${{ matrix.target }}
 
-      - uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+      - uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.62.23
         with:
           tool: cargo-deb@${{ env.CARGO_DEB_VERSION }}
 
@@ -356,7 +356,7 @@ jobs:
             --target "$TARGET" \
             --output "out/"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: deb-${{ matrix.deb_arch }}
           path: out/*.deb
@@ -373,7 +373,7 @@ jobs:
           - { target: x86_64-unknown-linux-gnu,  rpm_arch: x86_64 }
           - { target: aarch64-unknown-linux-gnu, rpm_arch: aarch64 }
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -383,7 +383,7 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           targets: ${{ matrix.target }}
 
-      - uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+      - uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.62.23
         with:
           tool: cargo-generate-rpm@${{ env.CARGO_GENERATE_RPM_VERSION }}
 
@@ -425,7 +425,7 @@ jobs:
             --payload-compress zstd \
             --output "out/"
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rpm-${{ matrix.rpm_arch }}
           path: out/*.rpm
@@ -445,7 +445,7 @@ jobs:
           - { target: x86_64-unknown-linux-musl,  apk_arch: x86_64 }
           - { target: aarch64-unknown-linux-musl, apk_arch: aarch64 }
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -519,7 +519,7 @@ jobs:
               cp /home/builder/hostid/APKBUILD /out/APKBUILD.${APK_ARCH}
             '
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: apk-${{ matrix.apk_arch }}
           path: out/apk/**
@@ -530,7 +530,7 @@ jobs:
     needs: [preflight, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -553,7 +553,7 @@ jobs:
           cp packaging/freebsd/port/pkg-descr "out/freebsd-port-pkg-descr"
 
       - name: Build .pkg in FreeBSD VM
-        uses: vmactions/freebsd-vm@8873d98fd1413b5977cb2f7348fe329775159892 # v1.2.1
+        uses: vmactions/freebsd-vm@d1e65811565151536c0c894fff74f06351ed26e6 # v1.2.1
         with:
           release: "14.0"
           usesh: true
@@ -578,7 +578,7 @@ jobs:
               stage/usr/local/share/licenses/hostid/LICENSE-MIT
             pkg create -M +MANIFEST -r stage -o out
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: freebsd-pkg
           path: out/**
@@ -597,7 +597,7 @@ jobs:
         image: [ubuntu:22.04, ubuntu:24.04, debian:12]
         arch: [amd64, arm64]
     steps:
-      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         if: matrix.arch == 'arm64'
       - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
         with:
@@ -629,7 +629,7 @@ jobs:
         image: [rockylinux:9, fedora:latest, amazonlinux:2023]
         arch: [x86_64, aarch64]
     steps:
-      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         if: matrix.arch == 'aarch64'
       - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
         with:
@@ -664,7 +664,7 @@ jobs:
       matrix:
         arch: [x86_64, aarch64]
     steps:
-      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
         if: matrix.arch == 'aarch64'
       - uses: actions/download-artifact@d3f86a106a0bac45b6d6c40808f1e6cfcc3e3e65 # v4.3.0
         with:
@@ -695,7 +695,7 @@ jobs:
           name: freebsd-pkg
           path: dist
       - name: Install and run inside FreeBSD 14 VM
-        uses: vmactions/freebsd-vm@8873d98fd1413b5977cb2f7348fe329775159892 # v1.2.1
+        uses: vmactions/freebsd-vm@d1e65811565151536c0c894fff74f06351ed26e6 # v1.2.1
         with:
           release: "14.0"
           usesh: true
@@ -781,7 +781,7 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -811,7 +811,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable tip
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
-      - uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+      - uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.62.23
         with:
           tool: cargo-cyclonedx@${{ env.CARGO_CYCLONEDX_VERSION }}
 
@@ -851,7 +851,7 @@ jobs:
             -m release/SHA256SUMS -x release/SHA256SUMS.minisig
 
       - name: SLSA build provenance
-        uses: actions/attest-build-provenance@c4fbc648846ca6f503a13a2281a5e7b98aa57202 # v2.2.3
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v2.2.3
         with:
           subject-path: |
             release/*.tar.gz
@@ -861,7 +861,7 @@ jobs:
             release/*.apk
             release/*.pkg
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-bundle
           path: release/
@@ -875,7 +875,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
@@ -889,7 +889,7 @@ jobs:
           path: .
 
       - name: Attach artefacts to GitHub Release
-        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           tag_name: ${{ needs.preflight.outputs.tag }}
           body_path: release-notes.md
@@ -1030,7 +1030,7 @@ jobs:
       contents: read
       attestations: read
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
