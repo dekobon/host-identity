@@ -146,27 +146,9 @@ are unaffected.
 
 ## Packaging
 
-Build artifacts the `hostid` CLI ships:
-
-- Binary: `target/release/hostid` (after `cargo build --release -p host-identity-cli`)
-- Man page: `man/hostid.1` plus one page per subcommand
-  (`man/hostid-resolve.1`, `man/hostid-audit.1`, `man/hostid-sources.1`),
-  committed in-repo and regenerated with `cargo xtask`.
-
-Standard install locations:
-
-```bash
-install -Dm755 target/release/hostid "$PREFIX/bin/hostid"
-install -Dm644 man/hostid.1          "$PREFIX/share/man/man1/hostid.1"
-install -Dm644 man/hostid-resolve.1  "$PREFIX/share/man/man1/hostid-resolve.1"
-install -Dm644 man/hostid-audit.1    "$PREFIX/share/man/man1/hostid-audit.1"
-install -Dm644 man/hostid-sources.1  "$PREFIX/share/man/man1/hostid-sources.1"
-```
-
-The man pages are generated from the `clap` command definition via
-`clap_mangen`. Packagers do not need to run the generator; the committed
-`.1` files are the source of truth for distribution. A CI job fails if
-the committed pages drift from the current `clap` metadata.
+Building a package? See [`docs/packaging.md`](docs/packaging.md) for
+build artefacts, the standard install layout, the release-pipeline
+stages, per-distro notes, and signing / parity checks.
 
 ## License
 
