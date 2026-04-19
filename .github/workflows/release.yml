@@ -238,6 +238,21 @@ jobs:
       # Debug symbols are staged under dist/debug/ so the archive-upload
       # glob (`dist/*.tar.gz`, `dist/*.zip`) cannot accidentally scoop
       # them into the primary-archive artefact.
+      # Cross-arch binaries (e.g. aarch64 on an x86_64 runner) cannot be
+      # processed by the host binutils — `objcopy` fails with "Unable to
+      # recognise the format of the input file". `llvm-objcopy` and
+      # `llvm-strip` are architecture-agnostic over ELF and handle every
+      # Rust Linux/FreeBSD target from any runner.
+      - name: Install llvm-objcopy (ELF-agnostic strip/objcopy)
+        if: ${{ !contains(matrix.target, 'windows') && !contains(matrix.target, 'apple') }}
+        run: |
+          set -eu
+          if ! command -v llvm-objcopy >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends llvm
+          fi
+          llvm-objcopy --version | head -n1
+
       - name: Strip binary and extract debug symbols (Unix)
         if: ${{ !contains(matrix.target, 'windows') }}
         shell: bash
@@ -253,9 +268,9 @@ jobs:
             tar -czf "dist/debug/${STAGE}.dSYM.tar.gz" -C dist "${STAGE}.dSYM"
             rm -rf "dist/${STAGE}.dSYM"
           else
-            objcopy --only-keep-debug "$BIN" "dist/debug/${STAGE}.debug"
-            strip --strip-unneeded "$BIN"
-            objcopy --add-gnu-debuglink="dist/debug/${STAGE}.debug" "$BIN"
+            llvm-objcopy --only-keep-debug "$BIN" "dist/debug/${STAGE}.debug"
+            llvm-strip --strip-unneeded "$BIN"
+            llvm-objcopy --add-gnu-debuglink="dist/debug/${STAGE}.debug" "$BIN"
           fi
 
       - name: Collect PDB debug symbols (Windows)
