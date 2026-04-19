@@ -2,23 +2,21 @@
 # frozen_string_literal: true
 
 # Rendered by .github/workflows/release.yml on each v* tag.
-# Tokens substituted: @@VERSION@@, @@SHA256_X86_64@@, @@SHA256_AARCH64@@.
+# Tokens substituted: @@VERSION@@, @@SHA256_AARCH64@@.
 class Hostid < Formula
   desc "Stable host UUID across platforms, clouds, and Kubernetes"
   homepage "https://github.com/dekobon/host-identity"
   version "@@VERSION@@"
   license any_of: ["Apache-2.0", "MIT"]
 
-  # macOS-only tap. Linux users install via their distro package
-  # (apt/dnf/apk) — see the README install table.
+  # Apple-silicon-only. Intel Macs install via `cargo install
+  # host-identity-cli` or run the aarch64 build under Rosetta 2.
+  # GitHub's macos-13 runner pool was too oversubscribed to justify
+  # keeping Intel in the release matrix.
   on_macos do
     on_arm do
       url "https://github.com/dekobon/host-identity/releases/download/v#{version}/hostid-#{version}-aarch64-apple-darwin.tar.gz"
       sha256 "@@SHA256_AARCH64@@"
-    end
-    on_intel do
-      url "https://github.com/dekobon/host-identity/releases/download/v#{version}/hostid-#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "@@SHA256_X86_64@@"
     end
   end
 

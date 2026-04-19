@@ -121,7 +121,8 @@ packages for the common desktop/server targets to
 | RHEL / Rocky / Fedora / Amazon Linux | `dnf install ./hostid-<ver>-1.x86_64.rpm` (or `aarch64`)       |
 | Alpine                 | `apk add --allow-untrusted ./hostid-<ver>-r0.apk`                            |
 | FreeBSD (amd64)        | `pkg install ./hostid-<ver>.pkg`                                             |
-| macOS (Intel + Apple Silicon) | `brew install dekobon/host-identity/hostid`                           |
+| macOS (Apple Silicon)  | `brew install dekobon/host-identity/hostid`                                  |
+| macOS (Intel)          | `cargo install host-identity-cli` (no prebuilt binary — Rosetta 2 works too) |
 | Windows (x86_64 / arm64) | `scoop install hostid` (after `scoop bucket add dekobon https://github.com/dekobon/scoop-bucket`) |
 | Portable (Linux / macOS / Windows) | Download `hostid-<ver>-<target>.tar.gz` / `.zip` and extract    |
 | From source            | `cargo install host-identity-cli`                                            |
@@ -140,10 +141,13 @@ gh attestation verify hostid-<ver>-<target>.tar.gz -R dekobon/host-identity
 ```
 
 Gaps on v1: FreeBSD `aarch64` is not prebuilt (tier-3 Rust target) —
-use `cargo install` or the FreeBSD ports tree. macOS direct-download
-tarballs are unsigned/unnotarized; if Gatekeeper quarantines them,
-run `xattr -d com.apple.quarantine ./hostid` once. Homebrew installs
-are unaffected.
+use `cargo install` or the FreeBSD ports tree. Intel macOS (`x86_64`)
+is not prebuilt because GitHub's `macos-13` runner pool made releases
+unreliable; install via `cargo install host-identity-cli` or run the
+Apple-silicon build under Rosetta 2. macOS direct-download tarballs
+are unsigned/unnotarized; if Gatekeeper quarantines them, run
+`xattr -d com.apple.quarantine ./hostid` once. Homebrew installs are
+unaffected.
 
 ## Packaging
 
