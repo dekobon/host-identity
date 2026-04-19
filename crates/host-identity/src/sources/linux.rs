@@ -112,14 +112,127 @@ file_source!(
      but present on its own on some minimal images."
 );
 
-file_source!(
-    DmiProductUuid,
-    SourceKind::Dmi,
-    "/sys/class/dmi/id/product_uuid",
-    "`/sys/class/dmi/id/product_uuid` — SMBIOS system UUID. Distinct per physical or \
-     virtual hardware, so it distinguishes cloned VMs that share a machine-id, but requires \
-     root on most distributions."
-);
+/// `/sys/class/dmi/id/product_uuid` — SMBIOS system UUID. Distinct per
+/// physical or virtual hardware, so it distinguishes cloned VMs that share
+/// a machine-id, but requires root on most distributions.
+///
+/// # Vendor-placeholder filtering
+///
+/// SMBIOS commonly ships vendor-default values that are stable *per model*,
+/// not per machine. Returning one of those would produce a silently
+/// non-unique identity shared by every box with the same mainboard. This
+/// source additionally rejects, by returning `Ok(None)` with a
+/// `log::debug!` entry:
+///
+/// - `00000000-0000-0000-0000-000000000000` (all-zero)
+/// - `ffffffff-ffff-ffff-ffff-ffffffffffff` (all-F, case-insensitive)
+/// - Any UUID whose 32 hex nibbles are all the same character
+///   (`11111111-…`, `aaaaaaaa-…`, etc.)
+/// - A conservative curated list of well-known vendor placeholders
+///   (e.g. `03000200-0400-0500-0006-000700080009`), sourced from
+///   [fwupd](https://github.com/fwupd/fwupd) and `dmidecode`.
+///
+/// Anything not matching the filter passes through unchanged — the intent
+/// is to reject *known* garbage, not to gate on UUID shape.
+#[derive(Debug, Clone)]
+pub struct DmiProductUuid {
+    path: PathBuf,
+}
+
+impl DmiProductUuid {
+    /// Read from the standard path (`/sys/class/dmi/id/product_uuid`).
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            path: PathBuf::from("/sys/class/dmi/id/product_uuid"),
+        }
+    }
+
+    /// Read from a caller-supplied path. Useful for tests and unusual
+    /// image layouts.
+    #[must_use]
+    pub fn at(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    /// The configured path.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Default for DmiProductUuid {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Source for DmiProductUuid {
+    fn kind(&self) -> SourceKind {
+        SourceKind::Dmi
+    }
+    fn probe(&self) -> Result<Option<Probe>, Error> {
+        read_dmi_file(&self.path)
+    }
+}
+
+/// Well-known vendor-placeholder UUIDs, stored lowercase. Sourced from
+/// fwupd's UEFI plugin quirks list and `dmidecode` field notes. Kept
+/// deliberately conservative — a missing entry means the value passes
+/// through, which is the less-bad failure mode.
+const DMI_PLACEHOLDER_UUIDS: &[&str] = &[
+    // Supermicro / AMI golden default seen on a wide range of boards.
+    "03000200-0400-0500-0006-000700080009",
+];
+
+/// Return `true` if `value` looks like SMBIOS vendor-default garbage that
+/// should be rejected rather than used as an identity.
+fn is_dmi_garbage(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    if DMI_PLACEHOLDER_UUIDS.iter().any(|p| *p == lower) {
+        return true;
+    }
+    is_all_same_nibble_uuid(&lower)
+}
+
+/// Return `true` if the input is a canonical 8-4-4-4-12 hyphenated UUID
+/// whose 32 hex nibbles are all the same character. Subsumes the
+/// all-zero and all-F cases and rejects `11111111-…`, `aaaaaaaa-…`, etc.
+///
+/// The 32-hex-digit gate keeps short non-UUID values like `"abc"` from
+/// false-positively hitting this rule.
+fn is_all_same_nibble_uuid(value: &str) -> bool {
+    let mut chars = value.chars().filter(|c| *c != '-');
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_hexdigit() {
+        return false;
+    }
+    let mut count = 1usize;
+    for c in chars {
+        if c != first {
+            return false;
+        }
+        count += 1;
+    }
+    count == 32
+}
+
+fn read_dmi_file(path: &Path) -> Result<Option<Probe>, Error> {
+    match read_id_file(SourceKind::Dmi, path)? {
+        Some(probe) if is_dmi_garbage(probe.value()) => {
+            log::debug!(
+                "host-identity: DMI product_uuid {} matches a known vendor-placeholder; \
+                 falling through",
+                probe.value()
+            );
+            Ok(None)
+        }
+        other => Ok(other),
+    }
+}
 
 fn read_id_file(kind: SourceKind, path: &Path) -> Result<Option<Probe>, Error> {
     match read_capped(path) {
@@ -260,6 +373,93 @@ mod tests {
         let probe = read_id_file(SourceKind::MachineId, path)
             .expect("permission denied should be swallowed to Ok(None)");
         assert!(probe.is_none());
+    }
+
+    fn dmi_tempfile(body: &str) -> NamedTempFile {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "{body}").unwrap();
+        f
+    }
+
+    fn dmi_probe(body: &str) -> Option<Probe> {
+        let f = dmi_tempfile(body);
+        read_dmi_file(f.path()).unwrap()
+    }
+
+    #[test]
+    fn dmi_rejects_all_zero_uuid() {
+        assert!(dmi_probe("00000000-0000-0000-0000-000000000000\n").is_none());
+    }
+
+    #[test]
+    fn dmi_rejects_all_f_uuid_lower() {
+        assert!(dmi_probe("ffffffff-ffff-ffff-ffff-ffffffffffff\n").is_none());
+    }
+
+    #[test]
+    fn dmi_rejects_all_f_uuid_upper() {
+        assert!(dmi_probe("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF\n").is_none());
+    }
+
+    #[test]
+    fn dmi_rejects_all_same_nibble_1() {
+        assert!(dmi_probe("11111111-1111-1111-1111-111111111111\n").is_none());
+    }
+
+    #[test]
+    fn dmi_rejects_all_same_nibble_a() {
+        assert!(dmi_probe("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\n").is_none());
+    }
+
+    #[test]
+    fn dmi_rejects_supermicro_ami_placeholder() {
+        // Removing this entry from DMI_PLACEHOLDER_UUIDS must fail this
+        // test — deliberate regression coverage.
+        assert!(dmi_probe("03000200-0400-0500-0006-000700080009\n").is_none());
+    }
+
+    #[test]
+    fn dmi_rejects_supermicro_ami_placeholder_uppercase() {
+        assert!(
+            dmi_probe(
+                "03000200-0400-0500-0006-000700080009"
+                    .to_ascii_uppercase()
+                    .as_str()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn dmi_rejects_garbage_with_trailing_whitespace() {
+        // Confirms the filter composes with classify's trim.
+        assert!(dmi_probe("  00000000-0000-0000-0000-000000000000  \n\t").is_none());
+    }
+
+    #[test]
+    fn dmi_accepts_plausible_real_uuid() {
+        let probe = dmi_probe("4c4c4544-0039-5710-8052-b4c04f384833\n").unwrap();
+        assert_eq!(probe.value(), "4c4c4544-0039-5710-8052-b4c04f384833");
+    }
+
+    #[test]
+    fn dmi_accepts_non_uuid_shape() {
+        // The 32-hex-digit gate in is_all_same_nibble_uuid must not
+        // false-positively reject short non-UUID values.
+        let probe = dmi_probe("abcdef\n").unwrap();
+        assert_eq!(probe.value(), "abcdef");
+    }
+
+    #[test]
+    fn machine_id_file_accepts_all_zero_uuid() {
+        // Negative control: the DMI-specific garbage filter must not
+        // leak into MachineIdFile. Opaque per-host strings are not
+        // subject to SMBIOS placeholder rules.
+        let f = dmi_tempfile("00000000-0000-0000-0000-000000000000\n");
+        let probe = read_id_file(SourceKind::MachineId, f.path())
+            .unwrap()
+            .unwrap();
+        assert_eq!(probe.value(), "00000000-0000-0000-0000-000000000000");
     }
 
     #[cfg(unix)]

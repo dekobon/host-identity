@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `DmiProductUuid` now rejects well-known SMBIOS vendor-placeholder
+  UUIDs (all-zero, all-F, all-same-nibble, and a curated
+  fwupd/dmidecode-sourced list such as
+  `03000200-0400-0500-0006-000700080009`) by returning `Ok(None)` with
+  a `log::debug!` entry, so the resolver falls through to the next
+  source instead of emitting a silently non-unique fleet-wide
+  identity. See [#5](https://github.com/dekobon/host-identity/issues/5).
+
 ## [1.0.0-rc1] - 2026-04-19
 
 Rehearsal pre-release of 1.0.0. Exercises the full release pipeline

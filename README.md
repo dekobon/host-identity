@@ -65,7 +65,8 @@ corrupted:
 
 `host-identity` treats host identity as a layered problem: a
 platform-appropriate chain of identity sources with explicit container
-awareness, sentinel and empty-file rejection, an `HOST_IDENTITY` env /
+awareness, sentinel, empty-file, and DMI vendor-placeholder rejection,
+an `HOST_IDENTITY` env /
 file override, deterministic UUID v5 wrapping, and no random-UUID
 fallback on total failure (callers decide). If you just need
 `/etc/machine-id`, `machine-uid` is smaller; if you need an ID you

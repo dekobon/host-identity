@@ -378,6 +378,12 @@ in their default path and `SourceKind`.
   produce a fleet-wide collision if hashed. The caller should know.
 - Empty / whitespace-only → `Ok(None)`.
 - Any other I/O error → `Err(Error::Io { path, source })`.
+- `DmiProductUuid` additionally rejects known-garbage SMBIOS values
+  (all-zero, all-F, all-same-nibble, and a curated list of vendor
+  placeholders such as `03000200-0400-0500-0006-000700080009`) →
+  `Ok(None)` with a `log::debug!` entry, so a box shipping a
+  motherboard-default UUID falls through to the next source rather
+  than producing a fleet-wide non-unique identity.
 - Otherwise → `Ok(Some(trimmed))`.
 
 ### `IoPlatformUuid` (macOS)
