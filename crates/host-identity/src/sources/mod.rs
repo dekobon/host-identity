@@ -23,6 +23,11 @@ mod container;
 #[cfg(feature = "container")]
 pub use container::ContainerId;
 
+#[cfg(feature = "container")]
+mod lxc;
+#[cfg(feature = "container")]
+pub use lxc::LxcId;
+
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
@@ -139,7 +144,10 @@ pub fn default_chain() -> Vec<Box<dyn Source>> {
     chain.push(Box::new(EnvOverride::new("HOST_IDENTITY")));
 
     #[cfg(all(target_os = "linux", feature = "container"))]
-    chain.push(Box::new(ContainerId::default()));
+    {
+        chain.push(Box::new(ContainerId::default()));
+        chain.push(Box::new(LxcId::default()));
+    }
 
     #[cfg(target_os = "linux")]
     {
@@ -183,7 +191,10 @@ where
     chain.push(Box::new(KubernetesPodUid::default()));
 
     #[cfg(all(target_os = "linux", feature = "container"))]
-    chain.push(Box::new(ContainerId::default()));
+    {
+        chain.push(Box::new(ContainerId::default()));
+        chain.push(Box::new(LxcId::default()));
+    }
 
     #[cfg(feature = "aws")]
     chain.push(Box::new(AwsImds::new(transport.clone())));

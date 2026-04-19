@@ -52,6 +52,8 @@ pub mod source_ids {
     pub const FILE_OVERRIDE: &str = "file-override";
     /// `"container"` — [`crate::sources::ContainerId`] (feature `container`).
     pub const CONTAINER: &str = "container";
+    /// `"lxc"` — [`crate::sources::LxcId`] (feature `container`).
+    pub const LXC: &str = "lxc";
     /// `"machine-id"` — [`crate::sources::MachineIdFile`].
     pub const MACHINE_ID: &str = "machine-id";
     /// `"dbus-machine-id"` — [`crate::sources::DbusMachineIdFile`].
@@ -207,6 +209,9 @@ fn local_source_from_id(id: &str) -> Result<Box<dyn Source>, UnknownSourceError>
         SourceKind::Container => {
             feature_ctor!("container", "container", sources::ContainerId::default())
         }
+        SourceKind::Lxc => {
+            feature_ctor!("container", "lxc", sources::LxcId::default())
+        }
         SourceKind::KubernetesPodUid => {
             feature_ctor!(
                 "k8s",
@@ -285,6 +290,7 @@ mod tests {
             SourceKind::EnvOverride,
             SourceKind::FileOverride,
             SourceKind::Container,
+            SourceKind::Lxc,
             SourceKind::MachineId,
             SourceKind::DbusMachineId,
             SourceKind::Dmi,

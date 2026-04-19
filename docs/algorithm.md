@@ -53,7 +53,7 @@ the way they are.
 | Scope          | Answers "who is…"                        | Built-in sources                                                                     |
 | -------------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
 | Per-pod        | this Kubernetes pod?                     | `KubernetesPodUid`, `KubernetesDownwardApi` (when projecting `metadata.uid`)         |
-| Per-container  | this container runtime instance?         | `ContainerId`                                                                        |
+| Per-container  | this container runtime instance?         | `ContainerId`, `LxcId`                                                               |
 | Per-instance   | this virtual machine (hypervisor scope)? | `AwsImds`, `GcpMetadata`, `AzureImds`, `DigitalOceanMetadata`, `HetznerMetadata`, `OciMetadata`, `DmiProductUuid`, `KenvSmbios`, `IoPlatformUuid` |
 | Per-host-OS    | this OS install / boot identity?         | `MachineIdFile`, `DbusMachineIdFile`, `WindowsMachineGuid`, `FreeBsdHostIdFile`, `SysctlKernHostId`, `IllumosHostId` |
 | Per-namespace  | which Kubernetes namespace?              | `KubernetesServiceAccount`                                                           |
@@ -207,15 +207,16 @@ that OS contribute sources.
 ```text
 1. EnvOverride("HOST_IDENTITY")      — every platform
 2. ContainerId                       — Linux + feature "container"
-3. MachineIdFile                     — Linux
-4. DbusMachineIdFile                 — Linux
-5. DmiProductUuid                    — Linux
-6. IoPlatformUuid                    — macOS
-7. WindowsMachineGuid                — Windows
-8. FreeBsdHostIdFile                 — FreeBSD
-9. KenvSmbios                        — FreeBSD
-10. SysctlKernHostId                 — NetBSD / OpenBSD
-11. IllumosHostId                    — illumos / Solaris
+3. LxcId                             — Linux + feature "container"
+4. MachineIdFile                     — Linux
+5. DbusMachineIdFile                 — Linux
+6. DmiProductUuid                    — Linux
+7. IoPlatformUuid                    — macOS
+8. WindowsMachineGuid                — Windows
+9. FreeBsdHostIdFile                 — FreeBSD
+10. KenvSmbios                       — FreeBSD
+11. SysctlKernHostId                 — NetBSD / OpenBSD
+12. IllumosHostId                    — illumos / Solaris
 ```
 
 ### Rationale
@@ -237,19 +238,20 @@ that OS contribute sources.
 1. EnvOverride("HOST_IDENTITY")       — every platform
 2. KubernetesPodUid                   — feature "k8s"
 3. ContainerId                        — Linux + feature "container"
-4. AwsImds<T>                         — feature "aws"
-5. GcpMetadata<T>                     — feature "gcp"
-6. AzureImds<T>                       — feature "azure"
-7. DigitalOceanMetadata<T>            — feature "digitalocean"
-8. HetznerMetadata<T>                 — feature "hetzner"
-9. OciMetadata<T>                     — feature "oci"
-10. MachineIdFile / DbusMachineIdFile / DmiProductUuid — Linux
-11. IoPlatformUuid                    — macOS
-12. WindowsMachineGuid                — Windows
-13. FreeBsdHostIdFile / KenvSmbios    — FreeBSD
-14. SysctlKernHostId                  — NetBSD / OpenBSD
-15. IllumosHostId                     — illumos / Solaris
-16. KubernetesServiceAccount          — feature "k8s"
+4. LxcId                              — Linux + feature "container"
+5. AwsImds<T>                         — feature "aws"
+6. GcpMetadata<T>                     — feature "gcp"
+7. AzureImds<T>                       — feature "azure"
+8. DigitalOceanMetadata<T>            — feature "digitalocean"
+9. HetznerMetadata<T>                 — feature "hetzner"
+10. OciMetadata<T>                    — feature "oci"
+11. MachineIdFile / DbusMachineIdFile / DmiProductUuid — Linux
+12. IoPlatformUuid                    — macOS
+13. WindowsMachineGuid                — Windows
+14. FreeBsdHostIdFile / KenvSmbios    — FreeBSD
+15. SysctlKernHostId                  — NetBSD / OpenBSD
+16. IllumosHostId                     — illumos / Solaris
+17. KubernetesServiceAccount          — feature "k8s"
 ```
 
 ### Ordering principle
@@ -336,6 +338,30 @@ propagating.
 - No line matches any of the five container-ID patterns (Docker,
   containerd, CRI-O scope unit, Podman, sandboxed containerd) → `Ok(None)`.
 - Match → `Ok(Some(<64-hex container id>))`.
+
+### `LxcId`
+
+- Read `/etc/machine-id`; `NotFound`, empty, or the `uninitialized`
+  sentinel → `Ok(None)` (fall through silently; the primary
+  `MachineIdFile` below will surface the sentinel loudly if it is the
+  authoritative path).
+- Scan `/proc/self/cgroup` for one of: `/lxc.payload.<name>` or
+  `/lxc.monitor.<name>` (substring match — the literal dots make these
+  markers unambiguous) or the legacy `/lxc/<name>` (prefix match only,
+  to avoid false-matching `/usr/share/lxc/templates/...`).
+- If cgroup yields nothing, scan `/proc/self/mountinfo` with the same
+  markers — modern LXD resets the container's cgroup view via
+  cgroup-namespacing, and the name is only recoverable from bind-mount
+  source paths that leak through mountinfo.
+- No match → `Ok(None)`.
+- Match → `Ok(Some("lxc:<machine_id>:<name>"))`. Salting with
+  `machine-id` makes the raw value unique across hosts before the
+  `Wrap` stage hashes it; two different hosts running a container
+  with the same name cannot collide.
+
+Placed immediately below `ContainerId` in both default chains so a
+Docker-in-LXC nested deployment resolves to the innermost Docker ID —
+`ContainerId` fires first and short-circuits.
 
 ### `MachineIdFile`, `DbusMachineIdFile`, `DmiProductUuid`
 
@@ -519,6 +545,7 @@ authoritative document the implementation tracks; per-source rustdoc in
 | `SysctlKernHostId`                          | NetBSD [`sysctl(7)`](https://man.netbsd.org/sysctl.7) · OpenBSD [`sysctl(8)`](https://man.openbsd.org/sysctl.8), [`gethostid(3)`](https://man.openbsd.org/gethostid.3) |
 | `IllumosHostId`                             | illumos [`hostid(1)`](https://illumos.org/man/1/hostid) · [`sysinfo(2)`](https://illumos.org/man/2/sysinfo)                                                        |
 | `ContainerId`                               | [OCI Runtime Specification](https://github.com/opencontainers/runtime-spec/blob/main/spec.md) · [`proc_pid_mountinfo(5)`](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html) · [`cgroups(7)`](https://man7.org/linux/man-pages/man7/cgroups.7.html) |
+| `LxcId`                                     | [`lxc.container.conf(5)`](https://linuxcontainers.org/lxc/manpages/man5/lxc.container.conf.5.html) · [`cgroups(7)`](https://man7.org/linux/man-pages/man7/cgroups.7.html) · [`proc_pid_mountinfo(5)`](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html) |
 | `KubernetesPodUid`                          | [kubelet cgroup drivers](https://kubernetes.io/docs/concepts/architecture/cgroups/)                                                                                |
 | `KubernetesServiceAccount`                  | [Kubernetes: Configure service accounts for pods](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)                             |
 | `KubernetesDownwardApi`                     | [Kubernetes: Downward API volume files](https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/)                      |

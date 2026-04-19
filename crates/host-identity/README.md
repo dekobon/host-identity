@@ -79,11 +79,14 @@ Linux, it extracts the container ID from `/proc/self/mountinfo` — the
 same way Docker, Kubernetes, and CRI-O agents do — and uses that as the
 identity. Containers get their own identity rather than inheriting the
 host's, and the patterns match what existing tooling already produces so
-IDs flow through unchanged.
+IDs flow through unchanged. LXC and LXD guests are handled separately by
+`LxcId`: their container name is read from `/proc/self/cgroup` or
+`/proc/self/mountinfo` and salted with `/etc/machine-id` so two
+identically-named containers on different hosts cannot collide.
 
 **Identity scope is explicit.** Sources produce identities at
 different scopes: per-pod (`KubernetesPodUid`), per-container
-(`ContainerId`), per-instance (cloud metadata, SMBIOS) and
+(`ContainerId`, `LxcId`), per-instance (cloud metadata, SMBIOS) and
 per-host-OS (`machine-id`, registry `MachineGuid`). Every cloud
 metadata source returns the *host's* instance ID even when the
 caller is running inside a container on that instance — twenty
@@ -391,6 +394,7 @@ distinct hosts end up reporting the same value.
 | `DbusMachineIdFile`  | `/var/lib/dbus/machine-id`                     | No                              | **High**                                 | Usually a symlink to `/etc/machine-id`; inherits every risk above. When present as a separate file it was generated at the same first-boot moment and is cloned alongside.       |
 | `DmiProductUuid`     | `/sys/class/dmi/id/product_uuid`               | No                              | **Low on bare metal, low–medium in VMs** | SMBIOS system UUID. Set by the OEM on physical hardware. Regenerated per VM by VMware, Hyper-V, Proxmox, and libvirt clone-mode. Can still collide when a VM is deployed by copying disk files outside the hypervisor's clone tooling. Requires root to read on most distributions. |
 | `ContainerId`        | `/proc/self/mountinfo`                         | No                              | **None**                                 | The runtime assigns a fresh ID to every container. A restarted container is a new container, which is the correct semantics at the container layer.                              |
+| `LxcId`              | `/proc/self/cgroup`, `/proc/self/mountinfo`    | No                              | **Low**                                  | LXC/LXD container name salted with `/etc/machine-id`. Two hosts running a container with the same name still get distinct IDs because the salt differs; only an operator explicitly cloning both hosts and both containers together can collide.                                                                                        |
 | `IoPlatformUuid`     | `ioreg IOPlatformExpertDevice`                 | No                              | **Low on Apple hardware, medium in VMs** | Set at factory time on physical Macs. In VM products (Parallels, UTM, VMware Fusion) it may be derived from the VM config; duplicating the config file without randomizing it produces collisions. |
 | `WindowsMachineGuid` | `HKLM\…\Cryptography\MachineGuid`              | No                              | **High**                                 | Written by the installer and never regenerated. Every Windows image cloned without `sysprep /generalize` shares this GUID. A well-known class of bug in Windows fleet management. |
 | `FreeBsdHostIdFile`  | `/etc/hostid`                                  | No                              | **High**                                 | Written at first boot and persists. VM templates that aren't cleared before cloning produce collisions the same way `/etc/machine-id` does.                                       |

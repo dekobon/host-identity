@@ -470,7 +470,10 @@ fn available_source_ids() -> Vec<&'static str> {
         source_ids::ILLUMOS_HOSTID,
     ];
     #[cfg(feature = "container")]
-    ids.push(source_ids::CONTAINER);
+    {
+        ids.push(source_ids::CONTAINER);
+        ids.push(source_ids::LXC);
+    }
     #[cfg(feature = "network")]
     {
         ids.extend_from_slice(&[
@@ -518,6 +521,7 @@ mod tests {
     #[cfg(feature = "container")]
     fn available_source_ids_includes_container_when_feature_enabled() {
         assert!(available_source_ids().contains(&source_ids::CONTAINER));
+        assert!(available_source_ids().contains(&source_ids::LXC));
     }
 
     #[test]

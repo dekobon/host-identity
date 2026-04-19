@@ -80,8 +80,8 @@ models identity at four distinct scopes and lets the chain pick the
 most specific one available:
 
 - **per-pod** — `KubernetesPodUid` (distinct per pod).
-- **per-container** — `ContainerId` (distinct per container runtime
-  instance).
+- **per-container** — `ContainerId`, `LxcId` (distinct per container
+  runtime instance; `LxcId` covers LXC/LXD name-based deployments).
 - **per-instance** — cloud metadata (`AwsImds`, `GcpMetadata`, …),
   SMBIOS product UUID, macOS `IOPlatformUUID` (distinct per VM;
   shared by every container on that VM).

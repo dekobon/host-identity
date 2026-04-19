@@ -88,6 +88,9 @@ pub enum SourceKind {
     FileOverride,
     /// Container runtime ID extracted from `/proc/self/mountinfo` (Linux).
     Container,
+    /// LXC/LXD container name from `/proc/self/cgroup` or
+    /// `/proc/self/mountinfo`, salted with `/etc/machine-id` (Linux).
+    Lxc,
     /// `/etc/machine-id` (Linux).
     MachineId,
     /// `/var/lib/dbus/machine-id` (Linux).
@@ -189,6 +192,7 @@ source_kind_ids! {
     EnvOverride              => "env-override",              "environment-variable override (HOST_IDENTITY by default)";
     FileOverride             => "file-override",             "caller-supplied file containing a host identifier";
     Container                => "container",                 "container runtime ID from /proc/self/mountinfo (Linux)";
+    Lxc                      => "lxc",                       "LXC/LXD container name from /proc/self/cgroup or /proc/self/mountinfo, salted with /etc/machine-id (Linux)";
     MachineId                => "machine-id",                "/etc/machine-id (Linux)";
     DbusMachineId            => "dbus-machine-id",           "/var/lib/dbus/machine-id (Linux)";
     Dmi                      => "dmi",                       "/sys/class/dmi/id/product_uuid — SMBIOS system UUID (Linux)";
