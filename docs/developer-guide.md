@@ -449,8 +449,8 @@ Releases are cut by pushing a `v*` git tag. The
 [`.github/workflows/release.yml`](../.github/workflows/release.yml)
 pipeline handles everything downstream: binary builds,
 distro packages, smoke tests, signing, SBOMs, SLSA provenance, the
-GitHub Release, and updates to the Homebrew tap / Scoop bucket /
-winget manifest. See
+GitHub Release, and updates to the Homebrew tap and Scoop bucket.
+See
 [`packaging/README.md`](../packaging/README.md) for the template
 files each package format consumes.
 
@@ -470,7 +470,7 @@ below is the quick reference.
 4. Run `cargo xtask` and commit any `man/` diff.
 5. `git tag -a vX.Y.Z -m "vX.Y.Z"` and `git push --tags`.
 
-A pre-release (`vX.Y.Z-rc.1`) skips tap/bucket/winget updates but
+A pre-release (`vX.Y.Z-rc.1`) skips tap/bucket updates but
 still publishes signed artefacts to the GitHub Release.
 
 ### Rehearsing a release
@@ -479,9 +479,8 @@ Use the `workflow_dispatch` trigger on the `Release` workflow with
 a test tag like `v0.0.0-test1` (the pre-release gate prevents the
 rehearsal from touching external repositories). Re-running the
 workflow on the same tag is idempotent — `softprops/action-gh-release`
-overwrites existing assets, tap/bucket pushes are no-ops when the
-rendered files are unchanged, and `winget-releaser` PRs are
-deduplicated by version.
+overwrites existing assets and tap/bucket pushes are no-ops when
+the rendered files are unchanged.
 
 ### Secrets
 
@@ -495,7 +494,6 @@ The workflow expects these repository secrets:
 | `ALPINE_ABUILD_KEY_PUB`     | `package-apk` jobs           | matching public key                             |
 | `HOMEBREW_TAP_TOKEN`        | `publish` job                | fine-grained PAT scoped to `homebrew-host-identity` |
 | `SCOOP_BUCKET_TOKEN`        | `publish` job                | fine-grained PAT scoped to `scoop-bucket`       |
-| `WINGET_TOKEN`              | `publish` job                | GitHub PAT used by `winget-releaser`            |
 
 Rotate the minisign keypair by generating a new one
 (`minisign -G`), committing the new public key to `minisign.pub`,

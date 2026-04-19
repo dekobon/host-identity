@@ -32,8 +32,7 @@ One push of a `v*` tag runs this end-to-end:
    minisign, and attaches SLSA build provenance.
 6. **publish** — creates/updates the GitHub Release, attaches every
    artefact + `SHA256SUMS` + `SHA256SUMS.minisig`, and (for non
-   pre-releases) pushes the Homebrew formula, Scoop manifest, and
-   winget PR.
+   pre-releases) pushes the Homebrew formula and Scoop manifest.
 7. **publish-crates** — for non pre-releases, runs `cargo publish` for
    `host-identity` (library) then `host-identity-cli` (binary) in
    order. Skips idempotently if the version is already on crates.io
@@ -67,15 +66,10 @@ Configure these under **Settings → Secrets and variables → Actions**:
 | `ALPINE_ABUILD_KEY_PUB`  | Matching public key                                                |
 | `HOMEBREW_TAP_TOKEN`     | Fine-grained PAT with write access to `dekobon/homebrew-host-identity` |
 | `SCOOP_BUCKET_TOKEN`     | Fine-grained PAT with write access to `dekobon/scoop-bucket`       |
-| `WINGET_TOKEN`           | PAT used by `winget-releaser` to open the microsoft/winget-pkgs PR |
 | `CARGO_REGISTRY_TOKEN`   | crates.io API token scoped to `publish-new` + `publish-update` for `host-identity` and `host-identity-cli`. The workflow maps the secret to the env var of the same name, which `cargo publish` reads natively. |
 
 If `HOMEBREW_TAP_TOKEN` or `SCOOP_BUCKET_TOKEN` is missing, those
-steps log a message and skip without failing the release. If
-`WINGET_TOKEN` is missing, the winget step **fails** — the
-`winget-releaser` action errors out when its token input is empty.
-Either configure all three, or remove the winget step for
-releases you don't plan to ship to winget.
+steps log a message and skip without failing the release.
 
 If `CARGO_REGISTRY_TOKEN` is missing, the `publish-crates` job **fails**
 at the first `cargo publish` call with a "no upload token" error —
@@ -105,7 +99,6 @@ Releases (for stable versions) push to:
 
 - `dekobon/homebrew-host-identity` — Homebrew tap
 - `dekobon/scoop-bucket` — Scoop bucket
-- `microsoft/winget-pkgs` — winget manifests (via PR)
 - `crates.io` — `host-identity` (library) and `host-identity-cli`
   (binary) via `cargo publish`
 
@@ -162,7 +155,7 @@ fires. The CLI is not dry-run in preflight because its
 `host-identity` dependency is not yet on crates.io on a first
 publish.
 
-`publish-crates` runs in parallel with `publish` (tap/bucket/winget).
+`publish-crates` runs in parallel with `publish` (tap/bucket).
 One failure mode to be aware of: if the external package-manager
 pushes succeed but the crates.io publish fails (token issue,
 registry outage), `brew install hostid` will get the new version
@@ -170,7 +163,7 @@ while `cargo install host-identity-cli` will not until the job is
 re-run. Re-running on the same tag is safe — both jobs are
 idempotent — but noticing the gap is on you. The alternative would
 be serializing the jobs so crates.io must succeed before
-tap/bucket/winget push; that turns a crates.io outage into a full
+tap/bucket push; that turns a crates.io outage into a full
 release stall, which we've judged to be the worse failure mode.
 
 ## Bumping the version
@@ -285,9 +278,9 @@ Pre-release tags match `vX.Y.Z-<suffix>` (e.g. `v0.2.0-rc.1`,
 which:
 
 - Marks the GitHub Release as a pre-release.
-- Skips the Homebrew tap, Scoop bucket, winget PR, and crates.io
-  publish steps. crates.io uploads are irrevocable, so rehearsal
-  tags like `v0.0.0-test1` must not reach the registry.
+- Skips the Homebrew tap, Scoop bucket, and crates.io publish
+  steps. crates.io uploads are irrevocable, so rehearsal tags
+  like `v0.0.0-test1` must not reach the registry.
 
 Use this for any version that should not reach package managers.
 Signed artefacts, SBOMs, and SLSA provenance still publish normally,
@@ -323,7 +316,6 @@ The pipeline is designed to be idempotent on re-run:
 - `softprops/action-gh-release` overwrites existing release assets.
 - Tap and bucket pushes are no-ops when the rendered files are
   unchanged.
-- `winget-releaser` deduplicates by version.
 
 Clean up after a rehearsal by deleting the tag and the GitHub
 Release:
@@ -383,9 +375,6 @@ Check that the downstream package managers updated:
   bumping `Formula/hostid.rb`.
 - Scoop bucket: new commit on `dekobon/scoop-bucket` bumping
   `bucket/hostid.json`.
-- winget: a PR opened against `microsoft/winget-pkgs` by
-  `winget-releaser`. This one needs human review on the winget side
-  and may take days to merge — that is out of our control.
 
 ## Fixing a broken release
 
@@ -404,8 +393,8 @@ gh release delete vX.Y.Z --cleanup-tag --yes
 ```
 
 Then fix the underlying issue, bump to `vX.Y.(Z+1)`, and re-tag.
-**Do not re-use a published version number** — Homebrew/Scoop/winget
-users may have already cached the old artefacts.
+**Do not re-use a published version number** — Homebrew/Scoop and
+crates.io users may have already cached the old artefacts.
 
 If the tap or bucket needs a manual revert, clone the repo and revert
 the offending commit by hand. The release bot only writes a single

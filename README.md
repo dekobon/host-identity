@@ -121,7 +121,7 @@ packages for the common desktop/server targets to
 | Alpine                 | `apk add --allow-untrusted ./hostid-<ver>-r0.apk`                            |
 | FreeBSD (amd64)        | `pkg install ./hostid-<ver>.pkg`                                             |
 | macOS (Intel + Apple Silicon) | `brew install dekobon/host-identity/hostid`                           |
-| Windows (x86_64 / arm64) | `scoop install hostid` (after `scoop bucket add dekobon https://github.com/dekobon/scoop-bucket`) or `winget install dekobon.hostid` |
+| Windows (x86_64 / arm64) | `scoop install hostid` (after `scoop bucket add dekobon https://github.com/dekobon/scoop-bucket`) |
 | Portable (Linux / macOS / Windows) | Download `hostid-<ver>-<target>.tar.gz` / `.zip` and extract    |
 | From source            | `cargo install host-identity-cli`                                            |
 

@@ -1,7 +1,7 @@
 name: Release
 
 # Triggered by `v*` tags. `workflow_dispatch` is available for rehearsal
-# against an existing tag; the pre-release gate keeps tap/bucket/winget
+# against an existing tag; the pre-release gate keeps tap/bucket
 # updates from leaking during rehearsal.
 on:
   push:
@@ -1018,25 +1018,13 @@ jobs:
             git -c "http.extraheader=$AUTH_HEADER" push origin HEAD
           fi
 
-      # winget-releaser fails fast if the token is missing, so we only
-      # gate on the prerelease flag and let the action surface config
-      # errors.
-      - name: Open winget PR
-        if: needs.preflight.outputs.prerelease != 'true'
-        uses: vedantmgoyal9/winget-releaser@7a1bb91b13bfc79a0e2a53eaaafa19f1eb7dc6ee # v2
-        with:
-          identifier: dekobon.hostid
-          version: ${{ needs.preflight.outputs.version }}
-          installers-regex: 'hostid-.*-pc-windows-msvc\.zip$'
-          token: ${{ secrets.WINGET_TOKEN }}
-
   # ─── Stage 5b — crates.io publish ────────────────────────────────────
   # Uploads the library first, then the CLI. The pinned toolchain's
   # `cargo publish` waits for the new version to appear in the sparse
   # index before returning, so the CLI publish step can resolve
   # `host-identity` from the registry without an explicit sleep.
   #
-  # Skipped for pre-release tags (matches Homebrew/Scoop/winget gating)
+  # Skipped for pre-release tags (matches Homebrew/Scoop gating)
   # — a `-rc.1` upload is irrevocable on crates.io, and the throwaway
   # rehearsal tags documented in docs/cutting-a-release.md would burn
   # crate-name real estate. Every run still exercises the library
@@ -1044,7 +1032,7 @@ jobs:
   #
   # Each step short-circuits if the version is already on crates.io,
   # keeping `workflow_dispatch` re-runs on the same tag idempotent (the
-  # tap, bucket, and winget steps have the same property). cargo's own
+  # tap and bucket steps have the same property). cargo's own
   # "missing token" error is clear enough that we don't pre-check the
   # secret's presence; a typo'd secret name surfaces immediately on the
   # first `cargo publish` invocation.

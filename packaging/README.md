@@ -19,7 +19,3 @@ workflow substitutes at build time:
 | `freebsd/port/`                   | Published as-is for ports-tree PRs |
 | `homebrew/hostid.rb.tmpl`         | Pushed to `homebrew-host-identity` |
 | `scoop/hostid.json.in`            | Pushed to `scoop-bucket`           |
-
-Winget manifests are not templated here — the release workflow hands
-artefact URLs to `vedantmgoyal9/winget-releaser@v2`, which generates
-the full manifest and opens a PR against `microsoft/winget-pkgs`.

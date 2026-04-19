@@ -46,6 +46,6 @@ by semver.
   outcome), `sources` (list compiled-in sources), and `--version`.
   Man pages are generated from the clap schema.
 - Packaging for Debian/Ubuntu (`.deb`), RHEL/Fedora/Amazon Linux
-  (`.rpm`), Alpine (`.apk`), FreeBSD (`.pkg`), Homebrew, Scoop, and
-  winget. Release artefacts ship with CycloneDX SBOMs, minisign
-  signatures over `SHA256SUMS`, and SLSA build provenance.
+  (`.rpm`), Alpine (`.apk`), FreeBSD (`.pkg`), Homebrew, and Scoop.
+  Release artefacts ship with CycloneDX SBOMs, minisign signatures
+  over `SHA256SUMS`, and SLSA build provenance.

@@ -65,7 +65,7 @@ The files are committed so downstream packagers do not pull in
 Release automation lives in [`.github/workflows/release.yml`](../.github/workflows/release.yml)
 and is triggered by pushing a `v*` tag. `workflow_dispatch` re-runs
 an existing tag for rehearsal; the pre-release gate prevents tap /
-bucket / winget updates from leaking during rehearsal.
+bucket updates from leaking during rehearsal.
 
 Stages, in order:
 
@@ -79,8 +79,7 @@ Stages, in order:
 3. **package-deb / package-rpm / package-apk / package-freebsd** —
    consume the staged archive and emit native packages by rendering
    the templates under [`packaging/`](../packaging).
-4. **Tap / bucket / winget updates** — Homebrew tap, Scoop bucket,
-   and a PR against `microsoft/winget-pkgs` via `winget-releaser`.
+4. **Tap / bucket updates** — Homebrew tap and Scoop bucket pushes.
 5. **Attestations and signing** — SLSA attestations via `gh
    attestation`, plus `minisign` signatures over `SHA256SUMS`.
 
@@ -129,11 +128,6 @@ and `arm64` bottles.
 [`packaging/scoop/hostid.json.in`](../packaging/scoop) is pushed to the
 external `scoop-bucket` repo. Covers `x86_64` and `arm64` on Windows.
 
-### Winget
-
-Not templated in-repo. `vedantmgoyal9/winget-releaser@v2` consumes the
-artefact URLs and opens a PR against `microsoft/winget-pkgs`.
-
 ## Signing and provenance
 
 Every release tarball is covered by:
@@ -144,9 +138,9 @@ Every release tarball is covered by:
   `gh attestation verify <artefact> -R dekobon/host-identity`.
 
 Windows binaries are not Authenticode-signed; macOS direct-download
-tarballs are neither signed nor notarized. Homebrew installs and
-winget installs run through their respective trust stores and are
-unaffected by Gatekeeper quarantine.
+tarballs are neither signed nor notarized. Homebrew installs run
+through their respective trust store and are unaffected by
+Gatekeeper quarantine.
 
 ## Version and parity checks
 
