@@ -150,6 +150,22 @@ Building a package? See [`docs/packaging.md`](docs/packaging.md) for
 build artefacts, the standard install layout, the release-pipeline
 stages, per-distro notes, and signing / parity checks.
 
+## A note on platform coverage
+
+`host-identity` targets a wide matrix — Linux distros, macOS, Windows,
+FreeBSD, several cloud metadata services, LXC/LXD, Kubernetes — but
+the author maintains it on a small set of personal machines and has
+limited resources to exercise every supported platform on real
+hardware or paid cloud accounts. CI covers what it can; the long tail
+inevitably slips through.
+
+If you hit a bug on a platform or environment the test matrix misses,
+please [open an issue](https://github.com/dekobon/host-identity/issues)
+with the details — it is the single most useful contribution you can
+make. Donations of testing environments (cloud credits, access to
+uncommon hardware, BSD or Windows build hosts) are also very
+welcome; reach out via an issue if you can help.
+
 ## License
 
 Dual-licensed under [Apache License 2.0](LICENSE-APACHE) or
