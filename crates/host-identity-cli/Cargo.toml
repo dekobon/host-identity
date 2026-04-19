@@ -76,6 +76,7 @@ assets = [
     ["../../README.md", "usr/share/doc/hostid/README.md", "644"],
     ["../../LICENSE-APACHE", "usr/share/doc/hostid/LICENSE-APACHE", "644"],
     ["../../LICENSE-MIT", "usr/share/doc/hostid/LICENSE-MIT", "644"],
+    ["../../THIRD-PARTY-LICENSES.md", "usr/share/doc/hostid/THIRD-PARTY-LICENSES.md", "644"],
 ]
 
 # RHEL/Rocky/Fedora/Amazon Linux packaging — consumed by
@@ -93,5 +94,6 @@ assets = [
     { source = "README.md", dest = "/usr/share/doc/hostid/README.md", mode = "644", doc = true },
     { source = "LICENSE-APACHE", dest = "/usr/share/doc/hostid/LICENSE-APACHE", mode = "644", doc = true },
     { source = "LICENSE-MIT", dest = "/usr/share/doc/hostid/LICENSE-MIT", mode = "644", doc = true },
+    { source = "THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/hostid/THIRD-PARTY-LICENSES.md", mode = "644", doc = true },
 ]
 auto-req = "disabled"

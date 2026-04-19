@@ -18,6 +18,7 @@ package() {
 	install -Dm644 "$builddir/man/hostid-sources.1" "$pkgdir/usr/share/man/man1/hostid-sources.1"
 	install -Dm644 "$builddir/LICENSE-APACHE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"
 	install -Dm644 "$builddir/LICENSE-MIT" "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
+	install -Dm644 "$builddir/THIRD-PARTY-LICENSES.md" "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-LICENSES.md"
 }
 
 sha512sums="@@SHA512@@  hostid-$pkgver-@@TARGET@@.tar.gz"

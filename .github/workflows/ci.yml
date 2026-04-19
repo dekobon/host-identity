@@ -140,6 +140,26 @@ jobs:
         with:
           command: check advisories bans licenses sources
 
+  license-audit:
+    name: license-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.8.4
+      # Fails if any dep in the CLI's transitive closure resolves to a
+      # license not in `about.toml` `accepted`. Dependabot PRs that
+      # introduce an unapproved license now fail here instead of
+      # silently slipping into the release.
+      - name: Render third-party attribution bundle
+        run: |
+          cargo about generate --locked \
+            --manifest-path crates/host-identity-cli/Cargo.toml \
+            about.hbs > /dev/null
+
   # Single required status check for branch protection — depends on
   # every non-release job. Passing this one check guarantees the full
   # matrix passed.
@@ -155,6 +175,7 @@ jobs:
       - feature-matrix
       - manpage
       - deny
+      - license-audit
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed or was cancelled

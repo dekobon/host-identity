@@ -20,7 +20,10 @@ One push of a `v*` tag runs this end-to-end:
 2. **build** — cross-compiles `hostid` for nine targets (Linux
    gnu/musl x86_64+aarch64, FreeBSD x86_64, macOS x86_64+aarch64,
    Windows x86_64+aarch64). Strips binaries, captures debug symbols,
-   produces per-target `.tar.gz` / `.zip` archives.
+   runs `cargo about generate` against
+   [`about.toml`](../about.toml) / [`about.hbs`](../about.hbs) to
+   produce `THIRD-PARTY-LICENSES.md` per target, and produces
+   per-target `.tar.gz` / `.zip` archives.
 3. **package-*** — builds `.deb`, `.rpm`, `.apk`, and FreeBSD `.pkg`
    artefacts from the staged binaries.
 4. **smoke-*** — installs each package inside the appropriate

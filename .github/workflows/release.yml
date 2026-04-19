@@ -38,6 +38,7 @@ env:
   CARGO_DEB_VERSION: "2.7.0"
   CARGO_GENERATE_RPM_VERSION: "0.15.0"
   CARGO_CYCLONEDX_VERSION: "0.5.7"
+  CARGO_ABOUT_VERSION: "0.8.4"
 
 jobs:
   # ─── Stage 0 — preflight gate ────────────────────────────────────────
@@ -198,6 +199,11 @@ jobs:
         with:
           tool: cross@${{ env.CROSS_VERSION }}
 
+      - name: Install cargo-about
+        uses: taiki-e/install-action@9ca1734d8940023f074414ee621fd530c4ce10f2 # v2.62.23
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+
       - name: Regenerate man pages
         shell: bash
         run: cargo xtask
@@ -231,6 +237,15 @@ jobs:
           fi
           cp README.md LICENSE-APACHE LICENSE-MIT "dist/${STAGE}/"
           cp crates/host-identity/CHANGELOG.md "dist/${STAGE}/CHANGELOG.md"
+          # Transitive-dependency attributions. Apache-2.0 §4(d) and
+          # ring's `Apache-2.0 AND ISC` compound license require us to
+          # ship these alongside the binary.
+          cargo about generate --locked \
+            --config about.toml \
+            --target "$TARGET" \
+            --manifest-path crates/host-identity-cli/Cargo.toml \
+            about.hbs \
+            > "dist/${STAGE}/THIRD-PARTY-LICENSES.md"
           cp man/hostid.1 man/hostid-audit.1 man/hostid-resolve.1 man/hostid-sources.1 \
              "dist/${STAGE}/man/"
           echo "STAGE=$STAGE" >> "$GITHUB_ENV"
@@ -368,6 +383,7 @@ jobs:
           cp "dist/${STAGE}/man/"*.1 man/
           cp "dist/${STAGE}/LICENSE-APACHE" LICENSE-APACHE
           cp "dist/${STAGE}/LICENSE-MIT" LICENSE-MIT
+          cp "dist/${STAGE}/THIRD-PARTY-LICENSES.md" THIRD-PARTY-LICENSES.md
 
       - name: Build .deb
         env:
@@ -434,6 +450,7 @@ jobs:
           cp "dist/${STAGE}/hostid" "target/release/hostid"
           mkdir -p man
           cp "dist/${STAGE}/man/"*.1 man/
+          cp "dist/${STAGE}/THIRD-PARTY-LICENSES.md" THIRD-PARTY-LICENSES.md
 
       - name: Build .rpm
         env:
@@ -600,6 +617,8 @@ jobs:
               stage/usr/local/share/licenses/hostid/LICENSE-APACHE
             install -m 644 "dist/${STAGE}/LICENSE-MIT" \
               stage/usr/local/share/licenses/hostid/LICENSE-MIT
+            install -m 644 "dist/${STAGE}/THIRD-PARTY-LICENSES.md" \
+              stage/usr/local/share/licenses/hostid/THIRD-PARTY-LICENSES.md
             pkg create -M +MANIFEST -r stage -o out
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -641,6 +660,15 @@ jobs:
               apt-get install -y -qq man-db /w/*.deb
               hostid --version | grep -F "$VERSION"
               man --pager=cat hostid >/dev/null
+              # Content regression guard: ring ships `Apache-2.0 AND
+              # ISC`, both texts mandatory. If either drops out (e.g.
+              # someone removes "ISC" from about.toml accepted), the
+              # bundle is non-compliant. Run in one lane only — deb.
+              TPL=/usr/share/doc/hostid/THIRD-PARTY-LICENSES.md
+              test -s "$TPL"
+              grep -qF "ring" "$TPL"
+              grep -q "^### ISC License" "$TPL"
+              grep -q "^### Apache License 2.0" "$TPL"
             '
 
   smoke-rpm:
@@ -677,6 +705,7 @@ jobs:
               hostid --version | grep -F "$VERSION"
               # Man pages may be uncompressed or zstd/gz compressed depending on rpm build settings.
               ls /usr/share/man/man1/hostid.1* >/dev/null
+              test -s /usr/share/doc/hostid/THIRD-PARTY-LICENSES.md
             '
 
   smoke-apk:
@@ -707,6 +736,7 @@ jobs:
               apk add --no-cache --allow-untrusted /w/*.apk mandoc
               hostid --version | grep -F "$VERSION"
               test -f /usr/share/man/man1/hostid.1
+              test -s /usr/share/licenses/hostid/THIRD-PARTY-LICENSES.md
             '
 
   smoke-freebsd:
@@ -729,6 +759,7 @@ jobs:
             pkg install -y "$PKG"
             hostid --version | grep -F "${{ needs.preflight.outputs.version }}"
             test -f /usr/local/share/man/man1/hostid.1.gz
+            test -s /usr/local/share/licenses/hostid/THIRD-PARTY-LICENSES.md
 
   smoke-macos:
     name: smoke macOS tarball (${{ matrix.runner }})
@@ -755,6 +786,7 @@ jobs:
           tar -xzf "dist/${STAGE}.tar.gz" -C dist
           "dist/${STAGE}/hostid" --version | grep -F "$VERSION"
           test -f "dist/${STAGE}/man/hostid.1"
+          test -s "dist/${STAGE}/THIRD-PARTY-LICENSES.md"
 
   smoke-windows:
     name: smoke Windows zip
@@ -779,6 +811,11 @@ jobs:
           }
           if (-not (Get-ChildItem -Recurse extracted -Filter hostid.1)) {
             throw "man page missing from zip"
+          }
+          # $tpl is a FileInfo; .Length on FileInfo is file size in bytes.
+          $tpl = Get-ChildItem -Recurse extracted -Filter THIRD-PARTY-LICENSES.md | Select-Object -First 1
+          if (-not $tpl -or $tpl.Length -eq 0) {
+            throw "THIRD-PARTY-LICENSES.md missing or empty in zip"
           }
 
   # ─── Stage 4 — sign, attest, SBOM ────────────────────────────────────

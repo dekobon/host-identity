@@ -20,6 +20,11 @@ target/
 # the GitHub Release; no need to track working-tree copies.
 *.cdx.json
 
+# Third-party attributions are generated from `about.toml` / `about.hbs`
+# by the release workflow and the `license-audit` CI job; keep
+# working-tree copies out of source control.
+/THIRD-PARTY-LICENSES.md
+
 # End of https://www.toptal.com/developers/gitignore/api/rust
 
 # Signing keypairs must never reach the repo. Covers the working

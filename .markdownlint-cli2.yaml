@@ -5,6 +5,11 @@ config:
     code_blocks: false
     headings: false
   MD060: false
+  # Keep-a-Changelog reuses `### Added` / `### Changed` / `### Fixed`
+  # under each version heading. `siblings_only` keeps MD024 catching
+  # real duplicate headings without flagging the changelog pattern.
+  MD024:
+    siblings_only: true
 
 globs:
   - "**/*.md"

@@ -25,6 +25,7 @@ A full `hostid` build ships three kinds of files:
 | Binary          | `cargo build --release -p host-identity-cli` → `target/<target>/release/hostid` |
 | Man pages       | `man/hostid.1`, `man/hostid-resolve.1`, `man/hostid-audit.1`, `man/hostid-sources.1` (committed; regenerate with `cargo xtask`) |
 | Debug symbols   | `target/<target>/release/hostid.dbg` (Unix, via `objcopy --only-keep-debug`) or `hostid.pdb` (Windows) |
+| Third-party licenses | `THIRD-PARTY-LICENSES.md` — generated from [`about.toml`](../about.toml) and [`about.hbs`](../about.hbs) by `cargo about generate` per target |
 
 The committed `.1` files are the source of truth for distribution;
 packagers should not need a Rust toolchain just to regenerate them.
@@ -40,6 +41,23 @@ install -Dm644 man/hostid.1          "$PREFIX/share/man/man1/hostid.1"
 install -Dm644 man/hostid-resolve.1  "$PREFIX/share/man/man1/hostid-resolve.1"
 install -Dm644 man/hostid-audit.1    "$PREFIX/share/man/man1/hostid-audit.1"
 install -Dm644 man/hostid-sources.1  "$PREFIX/share/man/man1/hostid-sources.1"
+install -Dm644 LICENSE-APACHE        "$PREFIX/share/doc/hostid/LICENSE-APACHE"
+install -Dm644 LICENSE-MIT           "$PREFIX/share/doc/hostid/LICENSE-MIT"
+install -Dm644 THIRD-PARTY-LICENSES.md "$PREFIX/share/doc/hostid/THIRD-PARTY-LICENSES.md"
+```
+
+`THIRD-PARTY-LICENSES.md` carries the attributions for every crate
+linked into the `hostid` binary. It is generated from
+[`about.toml`](../about.toml) (license allowlist + target list) and
+[`about.hbs`](../about.hbs) (Markdown template) by `cargo-about`
+during the release workflow's `build` stage. Packagers producing an
+out-of-band build should regenerate it first:
+
+```bash
+cargo install cargo-about
+cargo about generate --locked \
+    --manifest-path crates/host-identity-cli/Cargo.toml \
+    about.hbs > THIRD-PARTY-LICENSES.md
 ```
 
 FreeBSD packages install under `/usr/local/` rather than `/usr/`; see
