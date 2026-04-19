@@ -1,6 +1,7 @@
 # host-identity
 
 [![CI](https://github.com/dekobon/host-identity/actions/workflows/ci.yml/badge.svg)](https://github.com/dekobon/host-identity/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/dekobon/host-identity/actions/workflows/codeql.yml/badge.svg)](https://github.com/dekobon/host-identity/actions/workflows/codeql.yml)
 
 A Rust library that returns a stable, distinct UUID for the host
 your program is running on — and doesn't quietly collide on cloned
