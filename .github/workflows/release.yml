@@ -112,6 +112,15 @@ jobs:
             exit 1
           fi
 
+      # Package-level dry-run for the library. Catches metadata errors
+      # (missing description/license, non-packageable files, path-dep
+      # version drift) before any external publish fires. We do not
+      # dry-run host-identity-cli here because its `host-identity`
+      # dependency is not yet on crates.io on a first publish; the real
+      # `publish-crates` job handles the ordered upload.
+      - name: Dry-run cargo publish for host-identity
+        run: cargo publish -p host-identity --dry-run --locked
+
       - name: Extract release notes from CHANGELOG
         env:
           VERSION: ${{ steps.tag.outputs.version }}
@@ -1020,6 +1029,67 @@ jobs:
           version: ${{ needs.preflight.outputs.version }}
           installers-regex: 'hostid-.*-pc-windows-msvc\.zip$'
           token: ${{ secrets.WINGET_TOKEN }}
+
+  # ─── Stage 5b — crates.io publish ────────────────────────────────────
+  # Uploads the library first, then the CLI. The pinned toolchain's
+  # `cargo publish` waits for the new version to appear in the sparse
+  # index before returning, so the CLI publish step can resolve
+  # `host-identity` from the registry without an explicit sleep.
+  #
+  # Skipped for pre-release tags (matches Homebrew/Scoop/winget gating)
+  # — a `-rc.1` upload is irrevocable on crates.io, and the throwaway
+  # rehearsal tags documented in docs/cutting-a-release.md would burn
+  # crate-name real estate. Every run still exercises the library
+  # dry-run in `preflight`.
+  #
+  # Each step short-circuits if the version is already on crates.io,
+  # keeping `workflow_dispatch` re-runs on the same tag idempotent (the
+  # tap, bucket, and winget steps have the same property). cargo's own
+  # "missing token" error is clear enough that we don't pre-check the
+  # secret's presence; a typo'd secret name surfaces immediately on the
+  # first `cargo publish` invocation.
+  publish-crates:
+    name: publish to crates.io
+    needs: [preflight, sign-attest]
+    if: ${{ needs.preflight.outputs.prerelease != 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b # stable tip
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Publish host-identity
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -eu
+          # GET with body discarded — avoids HEAD-method quirks on the
+          # crates.io JSON API. `-f` maps non-2xx to exit 22.
+          if curl -sf -o /dev/null "https://crates.io/api/v1/crates/host-identity/${VERSION}"; then
+            echo "host-identity ${VERSION} already on crates.io — skipping"
+          else
+            cargo publish -p host-identity --locked
+          fi
+
+      - name: Publish host-identity-cli
+        env:
+          VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          set -eu
+          if curl -sf -o /dev/null "https://crates.io/api/v1/crates/host-identity-cli/${VERSION}"; then
+            echo "host-identity-cli ${VERSION} already on crates.io — skipping"
+          else
+            cargo publish -p host-identity-cli --locked
+          fi
 
   # ─── Stage 6 — post-publish verification ─────────────────────────────
   verify:
