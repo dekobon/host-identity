@@ -594,13 +594,12 @@ jobs:
               # stage — `publish` runs later — so the fetch 404s. Point
               # SRCDEST at the pre-copied tarball alongside the APKBUILD.
               su builder -c "cd /home/builder/host-identity && SRCDEST=/home/builder/host-identity abuild -F -r"
-              # Diagnostic: show abuild output tree in case find below misses it.
-              echo "::group::abuild output tree"
-              find /home/builder/packages -type f || true
-              echo "::endgroup::"
-              find /home/builder/packages -name \"*.apk\" -exec cp {} /out/ \;
+              # Inside `sh -c '...'` (single-quoted), `*` is already
+              # literal — escaping the quotes around `*.apk` passed the
+              # literal string `"*.apk"` to find, which then matched
+              # nothing and silently left /out empty.
+              find /home/builder/packages -name "*.apk" -exec cp {} /out/ \;
               cp /home/builder/host-identity/APKBUILD /out/APKBUILD.${APK_ARCH}
-              ls -la /out
             '
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
