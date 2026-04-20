@@ -1,5 +1,5 @@
 #shellcheck shell=sh
-#shellcheck disable=SC2016
+#shellcheck disable=SC2016,SC2154 # VERSION_SHAPE is exported by spec_helper.sh.
 # Help-text and version contracts that packagers and shell callers
 # scrape. Tightly scoped on purpose — we assert the strings the
 # ecosystem depends on, not clap's full wording.
@@ -11,7 +11,7 @@ Describe 'help and version'
     When call host_identity --version
     The status should equal 0
     The stderr should be blank
-    The stdout should match pattern "$VERSION_SHAPE"
+    The stdout should match pattern "${VERSION_SHAPE}"
   End
 
   It '--help mentions both HOST_IDENTITY and HOST_IDENTITY_FILE'

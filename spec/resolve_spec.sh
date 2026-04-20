@@ -1,5 +1,5 @@
 #shellcheck shell=sh
-#shellcheck disable=SC2016
+#shellcheck disable=SC2016,SC2154 # UUID_SHAPE is exported by spec_helper.sh.
 # Specs for `host-identity resolve` on its own — format, wrap, sources
 # validation. Precedence and env-override edge cases live in
 # env_override_spec.sh.
@@ -11,7 +11,7 @@ Describe 'host-identity resolve'
     When call host_identity resolve
     The status should equal 0
     The stderr should be blank
-    The stdout should match pattern "$UUID_SHAPE"
+    The stdout should match pattern "${UUID_SHAPE}"
     The lines of stdout should equal 1
   End
 
@@ -19,7 +19,7 @@ Describe 'host-identity resolve'
     When call host_identity
     The status should equal 0
     The stderr should be blank
-    The stdout should match pattern "$UUID_SHAPE"
+    The stdout should match pattern "${UUID_SHAPE}"
     The lines of stdout should equal 1
   End
 

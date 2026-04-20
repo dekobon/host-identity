@@ -25,24 +25,24 @@ spec_helper_precheck() {
 }
 
 resolve_host_identity_bin() {
-  if [ -n "${HOST_IDENTITY_BIN:-}" ] && [ -x "$HOST_IDENTITY_BIN" ]; then
-    printf '%s\n' "$HOST_IDENTITY_BIN"
+  if [ -n "${HOST_IDENTITY_BIN:-}" ] && [ -x "${HOST_IDENTITY_BIN}" ]; then
+    printf '%s\n' "${HOST_IDENTITY_BIN}"
     return 0
   fi
-  if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -x "$CARGO_TARGET_DIR/debug/host-identity" ]; then
-    printf '%s\n' "$CARGO_TARGET_DIR/debug/host-identity"
+  if [ -n "${CARGO_TARGET_DIR:-}" ] && [ -x "${CARGO_TARGET_DIR}/debug/host-identity" ]; then
+    printf '%s\n' "${CARGO_TARGET_DIR}/debug/host-identity"
     return 0
   fi
   # SHELLSPEC_PROJECT_ROOT is set by shellspec to the directory containing
   # `.shellspec`; fall back to the current directory for raw `shellspec`
   # invocations from the repo root.
-  repo_root=${SHELLSPEC_PROJECT_ROOT:-$PWD}
-  if [ -x "$repo_root/target/debug/host-identity" ]; then
-    printf '%s\n' "$repo_root/target/debug/host-identity"
+  repo_root=${SHELLSPEC_PROJECT_ROOT:-${PWD}}
+  if [ -x "${repo_root}/target/debug/host-identity" ]; then
+    printf '%s\n' "${repo_root}/target/debug/host-identity"
     return 0
   fi
-  if installed=$(command -v host-identity 2>/dev/null) && [ -n "$installed" ]; then
-    printf '%s\n' "$installed"
+  if installed=$(command -v host-identity 2>/dev/null) && [ -n "${installed}" ]; then
+    printf '%s\n' "${installed}"
     return 0
   fi
   return 1
@@ -50,7 +50,7 @@ resolve_host_identity_bin() {
 
 # Invoke the binary under test. Specs call this instead of spelling out
 # the full variable every time.
-host_identity() { "$HOST_IDENTITY_BIN" "$@"; }
+host_identity() { "${HOST_IDENTITY_BIN}" "$@"; }
 
 # Clear the override env vars so default-chain specs cannot be skewed by
 # a user shell that exports one of them. Call from BeforeEach.

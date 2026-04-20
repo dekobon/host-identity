@@ -21,8 +21,8 @@ set -euo pipefail
 # Paths
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-AGGREGATOR="$SCRIPT_DIR/aggregate_rust_metrics.py"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+AGGREGATOR="${SCRIPT_DIR}/aggregate_rust_metrics.py"
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -30,7 +30,7 @@ AGGREGATOR="$SCRIPT_DIR/aggregate_rust_metrics.py"
 TOP_N=20
 JOBS="$(nproc 2>/dev/null || echo 4)"
 OUTPUT=""
-ANALYZE_PATH="$PROJECT_ROOT/crates"
+ANALYZE_PATH="${PROJECT_ROOT}/crates"
 
 # ---------------------------------------------------------------------------
 # Colors
@@ -55,8 +55,8 @@ Run rust-code-analysis-cli on the project and display aggregated metrics.
 
 Options:
   -h, --help      Show this help message
-  -t, --top N     Number of top items per category (default: $TOP_N)
-  -j, --jobs N    Parallel analysis jobs (default: $JOBS)
+  -t, --top N     Number of top items per category (default: ${TOP_N})
+  -j, --jobs N    Parallel analysis jobs (default: ${JOBS})
   -o, --output F  Write report to file instead of stdout
   -p, --path DIR  Analyze a specific directory (default: crates/)
 
@@ -118,13 +118,13 @@ if ! command -v python3 >/dev/null 2>&1; then
 	exit 1
 fi
 
-if [[ ! -f "$AGGREGATOR" ]]; then
-	log_error "aggregator script not found: $AGGREGATOR"
+if [[ ! -f "${AGGREGATOR}" ]]; then
+	log_error "aggregator script not found: ${AGGREGATOR}"
 	exit 1
 fi
 
-if [[ ! -d "$ANALYZE_PATH" ]]; then
-	log_error "analysis path does not exist: $ANALYZE_PATH"
+if [[ ! -d "${ANALYZE_PATH}" ]]; then
+	log_error "analysis path does not exist: ${ANALYZE_PATH}"
 	exit 1
 fi
 
@@ -132,49 +132,49 @@ fi
 # Temporary directory with cleanup
 # ---------------------------------------------------------------------------
 METRICS_DIR="$(mktemp -d "${TMPDIR:-/tmp}/rust-metrics-XXXXXX")"
-trap 'rm -rf "$METRICS_DIR"' EXIT
+trap 'rm -rf "${METRICS_DIR}"' EXIT
 
 # ---------------------------------------------------------------------------
 # Run analysis
 # ---------------------------------------------------------------------------
-log_info "analyzing Rust files in ${ANALYZE_PATH#"$PROJECT_ROOT"/}"
-log_info "output format: json, jobs: $JOBS"
+log_info "analyzing Rust files in ${ANALYZE_PATH#"${PROJECT_ROOT}"/}"
+log_info "output format: json, jobs: ${JOBS}"
 
 rust-code-analysis-cli \
 	--metrics \
-	--paths "$ANALYZE_PATH" \
+	--paths "${ANALYZE_PATH}" \
 	--output-format json \
-	--output "$METRICS_DIR" \
+	--output "${METRICS_DIR}" \
 	--include "*.rs" \
-	--num-jobs "$JOBS" \
+	--num-jobs "${JOBS}" \
 	2>&1 | while IFS= read -r line; do
 	# Suppress empty lines, pass warnings/errors to stderr
-	[[ -n "$line" ]] && echo "  $line" >&2
+	[[ -n "${line}" ]] && echo "  ${line}" >&2
 done
 
 # Count results
-JSON_COUNT="$(find "$METRICS_DIR" -name '*.json' -type f 2>/dev/null | wc -l)"
-if [[ "$JSON_COUNT" -eq 0 ]]; then
+JSON_COUNT="$(find "${METRICS_DIR}" -name '*.json' -type f 2>/dev/null | wc -l)"
+if [[ "${JSON_COUNT}" -eq 0 ]]; then
 	log_error "no JSON metric files produced — check the analysis path"
 	exit 1
 fi
 
-log_ok "collected metrics for $JSON_COUNT files"
+log_ok "collected metrics for ${JSON_COUNT} files"
 
 # ---------------------------------------------------------------------------
 # Aggregate and report
 # ---------------------------------------------------------------------------
-log_info "aggregating metrics (top $TOP_N per category)"
+log_info "aggregating metrics (top ${TOP_N} per category)"
 
 AGGREGATE_ARGS=(
-	"$METRICS_DIR"
-	--top "$TOP_N"
-	--strip-prefix "$PROJECT_ROOT/"
+	"${METRICS_DIR}"
+	--top "${TOP_N}"
+	--strip-prefix "${PROJECT_ROOT}/"
 )
 
-if [[ -n "$OUTPUT" ]]; then
-	python3 "$AGGREGATOR" "${AGGREGATE_ARGS[@]}" --output "$OUTPUT"
-	log_ok "report written to $OUTPUT"
+if [[ -n "${OUTPUT}" ]]; then
+	python3 "${AGGREGATOR}" "${AGGREGATE_ARGS[@]}" --output "${OUTPUT}"
+	log_ok "report written to ${OUTPUT}"
 else
-	python3 "$AGGREGATOR" "${AGGREGATE_ARGS[@]}"
+	python3 "${AGGREGATOR}" "${AGGREGATE_ARGS[@]}"
 fi

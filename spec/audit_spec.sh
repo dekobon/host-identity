@@ -20,11 +20,11 @@ Describe 'host-identity audit'
     # file.
     audit_head() {
       rc_file=$(mktemp)
-      { host_identity audit; printf '%s' "$?" > "$rc_file"; } \
+      { host_identity audit; printf '%s\n' "$?" > "${rc_file}"; } \
         | head -n1 >/dev/null
-      rc=$(cat "$rc_file")
-      rm -f "$rc_file"
-      return "$rc"
+      read -r rc < "${rc_file}"
+      rm -f "${rc_file}"
+      return "${rc}"
     }
     When call audit_head
     The status should equal 0
@@ -44,6 +44,11 @@ Describe 'host-identity audit'
   It 'emits valid JSON with the documented status taxonomy under --format json'
     Skip if 'jq is not installed' jq_missing
     audit_json_check() {
+      # SC2312: audit's exit status is intentionally folded into the
+      # pipeline status — a non-zero audit run still produces JSON to
+      # validate, and the surrounding `When call` asserts the status
+      # separately in dedicated examples.
+      # shellcheck disable=SC2312
       host_identity audit --format json \
         | jq -e 'type == "array" and length > 0
                  and all(.[]; .source | type == "string")

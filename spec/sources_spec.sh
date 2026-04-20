@@ -10,15 +10,16 @@ Describe 'host-identity sources'
     # First whitespace-delimited column per line is the identifier;
     # keeping the assertion independent of the description column and
     # padding width.
+    # shellcheck disable=SC2312 # awk's exit is folded into the pipeline.
     list=$(host_identity sources | awk '{print $1}')
     for id in env-override file-override machine-id; do
-      printf '%s\n' "$list" | grep -qxF "$id" || return 1
+      printf '%s\n' "${list}" | grep -qxF "${id}" || return 1
     done
   }
 
   sources_stderr_blank() {
     err=$(host_identity sources 2>&1 >/dev/null)
-    [ -z "$err" ]
+    [ -z "${err}" ]
   }
 
   sources_json_check() {
