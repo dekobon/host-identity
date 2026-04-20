@@ -83,20 +83,23 @@ assets = [
 ]
 
 # RHEL/Rocky/Fedora/Amazon Linux packaging — consumed by
-# `cargo generate-rpm` in release CI.
+# `cargo generate-rpm` in release CI. Source paths are resolved
+# relative to this crate's Cargo.toml when `-p host-identity-cli` is
+# passed (matching cargo-deb's behaviour), hence the `../../` prefix
+# for anything that lives at the workspace root.
 [package.metadata.generate-rpm]
 name = "host-identity"
 summary = "Stable host UUID across platforms, clouds, and Kubernetes"
 license = "Apache-2.0 OR MIT"
 assets = [
-    { source = "target/release/host-identity", dest = "/usr/bin/host-identity", mode = "755" },
-    { source = "man/host-identity.1", dest = "/usr/share/man/man1/host-identity.1", mode = "644", doc = true },
-    { source = "man/host-identity-audit.1", dest = "/usr/share/man/man1/host-identity-audit.1", mode = "644", doc = true },
-    { source = "man/host-identity-resolve.1", dest = "/usr/share/man/man1/host-identity-resolve.1", mode = "644", doc = true },
-    { source = "man/host-identity-sources.1", dest = "/usr/share/man/man1/host-identity-sources.1", mode = "644", doc = true },
-    { source = "README.md", dest = "/usr/share/doc/host-identity/README.md", mode = "644", doc = true },
-    { source = "LICENSE-APACHE", dest = "/usr/share/doc/host-identity/LICENSE-APACHE", mode = "644", doc = true },
-    { source = "LICENSE-MIT", dest = "/usr/share/doc/host-identity/LICENSE-MIT", mode = "644", doc = true },
-    { source = "THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/host-identity/THIRD-PARTY-LICENSES.md", mode = "644", doc = true },
+    { source = "../../target/release/host-identity", dest = "/usr/bin/host-identity", mode = "755" },
+    { source = "../../man/host-identity.1", dest = "/usr/share/man/man1/host-identity.1", mode = "644", doc = true },
+    { source = "../../man/host-identity-audit.1", dest = "/usr/share/man/man1/host-identity-audit.1", mode = "644", doc = true },
+    { source = "../../man/host-identity-resolve.1", dest = "/usr/share/man/man1/host-identity-resolve.1", mode = "644", doc = true },
+    { source = "../../man/host-identity-sources.1", dest = "/usr/share/man/man1/host-identity-sources.1", mode = "644", doc = true },
+    { source = "../../README.md", dest = "/usr/share/doc/host-identity/README.md", mode = "644", doc = true },
+    { source = "../../LICENSE-APACHE", dest = "/usr/share/doc/host-identity/LICENSE-APACHE", mode = "644", doc = true },
+    { source = "../../LICENSE-MIT", dest = "/usr/share/doc/host-identity/LICENSE-MIT", mode = "644", doc = true },
+    { source = "../../THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/host-identity/THIRD-PARTY-LICENSES.md", mode = "644", doc = true },
 ]
 auto-req = "disabled"
