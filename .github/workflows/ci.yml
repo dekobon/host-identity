@@ -131,6 +131,45 @@ jobs:
             exit 1
           fi
 
+  shellspec:
+    name: shellspec (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      SHELLSPEC_VERSION: "0.28.1"
+      # sha256 of
+      # https://github.com/shellspec/shellspec/archive/refs/tags/0.28.1.tar.gz
+      SHELLSPEC_SHA256: "400d835466429a5fe6c77a62775a9173729d61dd43e05dfa893e8cf6cb511783"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # stable tip
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Install jq (ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+      - name: Install shellspec (tarball + sha256)
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/shellspec/shellspec/archive/refs/tags/${SHELLSPEC_VERSION}.tar.gz"
+          curl -fsSL -o shellspec.tar.gz "$url"
+          case "$RUNNER_OS" in
+            Linux)  echo "${SHELLSPEC_SHA256}  shellspec.tar.gz" | sha256sum -c - ;;
+            macOS)  echo "${SHELLSPEC_SHA256}  shellspec.tar.gz" | shasum -a 256 -c - ;;
+            *)      echo "unsupported runner OS: $RUNNER_OS" >&2; exit 1 ;;
+          esac
+          tar -xzf shellspec.tar.gz
+          echo "$PWD/shellspec-${SHELLSPEC_VERSION}/bin" >> "$GITHUB_PATH"
+      - name: Build CLI
+        run: cargo build -p host-identity-cli --locked
+      - name: Run shellspec suite
+        run: cargo xtask shellspec
+
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
@@ -174,6 +213,7 @@ jobs:
       - msrv
       - feature-matrix
       - manpage
+      - shellspec
       - deny
       - license-audit
     runs-on: ubuntu-latest

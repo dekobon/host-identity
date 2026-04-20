@@ -242,6 +242,45 @@ Common traps:
   the test is marked `#[serial]` (via the `serial_test` crate). Env
   state leaks across parallel test threads.
 
+### CLI specs (ShellSpec)
+
+Rust integration tests cover library and CLI logic. ShellSpec specs
+under [`spec/`](../spec) cover the shell-surface contracts real
+callers depend on: exact exit codes (`2` usage vs. `1` runtime),
+stdout-vs-stderr separation, `BrokenPipe` tolerance
+(`host-identity audit | head -n1`), `HOST_IDENTITY_FILE` content
+edge cases (CRLF, no-trailing-newline, leading/trailing whitespace),
+`env -i` invocation, and `--help` / `--version` scrape surfaces.
+
+Reach for a spec when the regression would be visible at the shell
+level — packagers, init scripts, `set -e` consumers. Reach for a
+Rust test when the regression is about the library, API, or internal
+state.
+
+Run the suite:
+
+```bash
+cargo build -p host-identity-cli
+cargo xtask shellspec                    # wraps shellspec, sets HOST_IDENTITY_BIN
+# or, against an already-built binary:
+HOST_IDENTITY_BIN=$PWD/target/debug/host-identity shellspec
+```
+
+Conventions:
+
+- POSIX `sh` only (no bashisms); the suite runs under
+  `shellspec --shell sh`.
+- Every `Describe` block resets env with `BeforeEach
+  'clean_host_identity_env'`.
+- `spec/spec_helper.sh` resolves the binary in this order:
+  `$HOST_IDENTITY_BIN`, `$CARGO_TARGET_DIR/debug/host-identity`,
+  `<repo>/target/debug/host-identity`, then `command -v host-identity`.
+- JSON specs gracefully skip when `jq` is not installed; install it
+  locally to exercise them.
+- Don't couple to compile-time-controlled source lists or clap's
+  exact error wording. Assert the smallest feature-agnostic subset
+  and exit codes.
+
 ## Git and commits
 
 ### Conventional commit format

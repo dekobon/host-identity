@@ -26,6 +26,11 @@ cargo test --all-features --workspace
 
 MSRV is declared in the workspace `Cargo.toml` (`rust-version`).
 
+For CLI contributors, [ShellSpec](https://shellspec.info/) is an
+optional prerequisite for running the `spec/` suite
+(`cargo xtask shellspec`). See the
+[Developer guide](docs/developer-guide.md#cli-specs-shellspec).
+
 Before pushing:
 
 ```bash
