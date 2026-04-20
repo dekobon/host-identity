@@ -21,6 +21,10 @@ package() {
 	install -Dm644 "$builddir/man/host-identity-audit.1" "$pkgdir/usr/share/man/man1/host-identity-audit.1"
 	install -Dm644 "$builddir/man/host-identity-resolve.1" "$pkgdir/usr/share/man/man1/host-identity-resolve.1"
 	install -Dm644 "$builddir/man/host-identity-sources.1" "$pkgdir/usr/share/man/man1/host-identity-sources.1"
+	# abuild's postcheck rejects uncompressed man pages. Alpine's
+	# convention is gzip-with-no-timestamp so the package is
+	# byte-reproducible across rebuilds.
+	gzip -9n "$pkgdir/usr/share/man/man1/"*.1
 	install -Dm644 "$builddir/LICENSE-APACHE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"
 	install -Dm644 "$builddir/LICENSE-MIT" "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
 	install -Dm644 "$builddir/THIRD-PARTY-LICENSES.md" "$pkgdir/usr/share/licenses/$pkgname/THIRD-PARTY-LICENSES.md"

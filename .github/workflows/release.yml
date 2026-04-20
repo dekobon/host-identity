@@ -764,7 +764,7 @@ jobs:
             alpine:3.20 sh -eu -c '
               apk add --no-cache --allow-untrusted /w/*.apk mandoc
               host-identity --version | grep -F "$VERSION"
-              test -f /usr/share/man/man1/host-identity.1
+              ls /usr/share/man/man1/host-identity.1* >/dev/null
               test -s /usr/share/licenses/host-identity/THIRD-PARTY-LICENSES.md
             '
 
