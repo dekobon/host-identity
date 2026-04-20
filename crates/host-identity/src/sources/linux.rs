@@ -221,8 +221,7 @@ const MACHINE_ID_DENYLIST: &[&str] = &[
     // identically on every install.
     // https://www.whonix.org/wiki/Protocol-Leak-Protection_and_Fingerprinting-Protection
     "b08dfa6083e7567a1921a715000001fb",
-    // docker.io/library/oraclelinux:9 — observed 2026-04-19 via
-    // utils/scan_image_machine_ids.sh.
+    // docker.io/library/oraclelinux:9 — observed 2026-04-19.
     "d495c4b7bb8244639186ef65305fd685",
     // docker.io/library/oraclelinux:8 — observed 2026-04-19.
     "e28a15f597cd4693bb61f1f3e8447cbd",
@@ -252,6 +251,11 @@ fn is_machine_id_garbage(value: &str) -> bool {
 /// Return `true` if `value` is exactly 32 hex digits and every digit is
 /// the same character. Covers the systemd-forbidden all-zero case and the
 /// synthetic `"11"*32`, `"aa"*32`, etc. values seen on broken images.
+///
+/// Deliberately **not** unified with [`is_all_same_nibble_uuid`]: that
+/// predicate accepts hyphenated 8-4-4-4-12 UUIDs (SMBIOS/DMI format);
+/// this one rejects hyphens because machine-id is specified as exactly
+/// 32 hex digits with no separators.
 fn is_all_same_nibble_hex32(value: &str) -> bool {
     let mut chars = value.chars();
     let Some(first) = chars.next() else {
@@ -309,6 +313,11 @@ fn is_dmi_garbage(value: &str) -> bool {
 ///
 /// The 32-hex-digit gate keeps short non-UUID values like `"abc"` from
 /// false-positively hitting this rule.
+///
+/// Deliberately **not** unified with [`is_all_same_nibble_hex32`]: that
+/// predicate requires exactly 32 hex digits with no hyphens (machine-id
+/// format); this one accepts hyphenated 8-4-4-4-12 UUIDs (SMBIOS/DMI
+/// format).
 fn is_all_same_nibble_uuid(value: &str) -> bool {
     let mut chars = value.chars().filter(|c| *c != '-');
     let Some(first) = chars.next() else {
@@ -739,6 +748,26 @@ mod tests {
     }
 
     #[test]
+    fn machine_id_file_probe_applies_filter() {
+        // End-to-end: MachineIdFile's Source::probe() (via the
+        // file_source! macro) must route through read_machine_id_file.
+        // Guards against regressions pointing the macro back at
+        // read_id_file.
+        let mut f = NamedTempFile::new().unwrap();
+        writeln!(f, "b08dfa6083e7567a1921a715000001fb").unwrap();
+        let probe = MachineIdFile::at(f.path()).probe().unwrap();
+        assert!(probe.is_none());
+    }
+
+    #[test]
+    fn dbus_machine_id_file_probe_applies_filter() {
+        let mut f = NamedTempFile::new().unwrap();
+        writeln!(f, "b08dfa6083e7567a1921a715000001fb").unwrap();
+        let probe = DbusMachineIdFile::at(f.path()).probe().unwrap();
+        assert!(probe.is_none());
+    }
+
+    #[test]
     fn is_all_same_nibble_hex32_rejects_short_values() {
         // Gate at exactly 32 chars so short non-hex32 strings pass through.
         assert!(!is_all_same_nibble_hex32("aaa"));
@@ -828,14 +857,17 @@ mod tests {
     }
 
     #[test]
-    fn machine_id_file_accepts_all_zero_uuid() {
-        // Negative control: the DMI-specific garbage filter must not
-        // leak into MachineIdFile. Opaque per-host strings are not
-        // subject to SMBIOS placeholder rules.
-        let f = dmi_tempfile("00000000-0000-0000-0000-000000000000\n");
-        let probe = read_id_file(SourceKind::MachineId, f.path())
-            .unwrap()
-            .unwrap();
+    fn machine_id_file_accepts_hyphenated_all_zero_uuid() {
+        // The machine-id filter's hex32 predicate deliberately requires
+        // exactly 32 hex digits with no hyphens (per the systemd
+        // machine-id format). A hyphenated all-zero UUID is not a valid
+        // machine-id shape but must not be rejected here — it would be
+        // the caller's job to write a correctly-shaped file.
+        let probe = machine_id_probe(
+            SourceKind::MachineId,
+            "00000000-0000-0000-0000-000000000000\n",
+        )
+        .unwrap();
         assert_eq!(probe.value(), "00000000-0000-0000-0000-000000000000");
     }
 
