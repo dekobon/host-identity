@@ -10,14 +10,22 @@
 //!
 //! [`host-identity`]: https://crates.io/crates/host-identity
 
+use std::ffi::OsStr;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand, ValueEnum};
 use host_identity::ids::{resolver_from_ids, source_ids};
+use host_identity::sources::FileOverride;
 use host_identity::{HostId, ResolveOutcome, Resolver, SourceKind, UnknownSourceError, Wrap};
 use serde::Serialize;
+
+/// Environment variable that, when set to a non-empty path, causes the
+/// CLI to prepend a [`FileOverride`] at the front of the resolver
+/// chain. Takes precedence over `HOST_IDENTITY`.
+const HOST_IDENTITY_FILE_ENV: &str = "HOST_IDENTITY_FILE";
 
 #[cfg(feature = "network")]
 mod transport;
@@ -36,9 +44,11 @@ first one that produces a credible identifier. Cloned-VM sentinels, empty \
 files, and systemd's literal `uninitialized` string are rejected rather than \
 silently hashed into a shared ID.
 
-The HOST_IDENTITY environment variable (or a file named by HOST_IDENTITY_FILE) \
-takes precedence over every other source, so operators can pin identity \
-explicitly when the automatic chain gets it wrong.
+Two environment variables pin identity explicitly when the automatic chain \
+gets it wrong. HOST_IDENTITY_FILE names a file whose contents are used as \
+the host identifier and takes precedence over every other source, including \
+HOST_IDENTITY. HOST_IDENTITY supplies the identifier inline and is consulted \
+next. Both work with the default chain and with explicit --sources.
 
 By default the chain uses only local sources. Pass --network to pull in \
 cloud-metadata and Kubernetes probes, which require an HTTP client and a \
@@ -61,6 +71,9 @@ EXAMPLES:
 
     Pin identity via environment override:
         HOST_IDENTITY=11111111-2222-3333-4444-555555555555 host-identity
+
+    Pin identity via a file (takes precedence over HOST_IDENTITY):
+        HOST_IDENTITY_FILE=/etc/host-identity host-identity
 
     List every source identifier compiled into this binary:
         host-identity sources
@@ -248,7 +261,33 @@ fn build_resolver(args: &ResolveArgs) -> Result<Resolver, CliError> {
             .map_err(CliError::Usage)?,
     };
 
-    Ok(resolver.with_wrap(Wrap::from(args.wrap)))
+    let mut resolver = resolver.with_wrap(Wrap::from(args.wrap));
+    if let Some(file_override) = host_identity_file_override() {
+        resolver = resolver.prepend(file_override);
+    }
+    Ok(resolver)
+}
+
+/// Read `HOST_IDENTITY_FILE` from the process environment and, if set
+/// to a non-empty path, return a [`FileOverride`] for it. The override
+/// is prepended by [`build_resolver`] so it outranks every other source,
+/// matching the documented precedence in `LONG_ABOUT`.
+fn host_identity_file_override() -> Option<FileOverride> {
+    file_override_from_env_value(std::env::var_os(HOST_IDENTITY_FILE_ENV).as_deref())
+}
+
+/// Pure helper: construct a [`FileOverride`] from a raw env-var value.
+/// Returns `None` when the value is absent or empty. A set-but-empty
+/// value is treated the same as unset so a script clearing the
+/// variable (`HOST_IDENTITY_FILE=`) disables the override rather than
+/// silently turning into `FileOverride::new("")` (which would probe a
+/// relative empty path).
+fn file_override_from_env_value(value: Option<&OsStr>) -> Option<FileOverride> {
+    let raw = value?;
+    if raw.is_empty() {
+        return None;
+    }
+    Some(FileOverride::new(PathBuf::from(raw)))
 }
 
 #[cfg(feature = "network")]
@@ -649,6 +688,15 @@ mod tests {
                 "message {msg:?} missing fragment {expected_fragment:?}",
             );
         }
+    }
+
+    #[test]
+    fn file_override_from_env_value_handles_absent_empty_and_set() {
+        assert!(file_override_from_env_value(None).is_none());
+        assert!(file_override_from_env_value(Some(OsStr::new(""))).is_none());
+        let fo = file_override_from_env_value(Some(OsStr::new("/tmp/host-id")))
+            .expect("non-empty value must yield a FileOverride");
+        assert_eq!(fo.path(), std::path::Path::new("/tmp/host-id"));
     }
 
     #[test]

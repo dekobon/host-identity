@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- CLI: honour the `HOST_IDENTITY_FILE` environment variable that the
+  `--help` text already advertised. When set to a non-empty path, the
+  CLI now prepends a `FileOverride` ahead of every other source (both
+  the default chain and explicit `--sources` chains), so operators
+  can pin identity from a file without editing the resolver code.
+  `HOST_IDENTITY_FILE` outranks `HOST_IDENTITY` when both are set; an
+  empty value is treated as unset. See
+  [#8](https://github.com/dekobon/host-identity/issues/8).
+
 ### Added
 
 - Binary artefacts (`.deb`, `.rpm`, `.apk`, FreeBSD `.pkg`, macOS and
