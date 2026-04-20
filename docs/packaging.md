@@ -3,8 +3,7 @@
 Reference for anyone producing a `host-identity` build artefact — whether you
 are packaging for a distro, rolling a private internal build, or
 debugging why a release-workflow stage failed. End users looking for
-install instructions want the [README's *Install*
-section](../README.md#install) instead.
+install instructions want [`install.md`](install.md) instead.
 
 ## Contents
 

@@ -151,44 +151,19 @@ re-hashes it under this crate's namespace.
 
 ## Install
 
-Every release tag (`v*`) publishes prebuilt binaries and native
-packages for the common desktop/server targets to
-[GitHub Releases](https://github.com/dekobon/host-identity/releases).
-
-| Platform               | Install                                                                      |
-| ---------------------- | ---------------------------------------------------------------------------- |
-| Debian / Ubuntu        | `apt install ./host-identity_<ver>_amd64.deb` (or `arm64`)                   |
-| RHEL / Rocky / Fedora / Amazon Linux | `dnf install ./host-identity-<ver>-1.x86_64.rpm` (or `aarch64`) |
-| Alpine                 | `apk add --allow-untrusted ./host-identity-<ver>-r0.apk`                     |
-| FreeBSD (amd64)        | `pkg install ./host-identity-<ver>.pkg`                                      |
-| macOS (Apple Silicon)  | `brew install dekobon/host-identity/host-identity`                           |
-| macOS (Intel)          | `cargo install host-identity-cli` (no prebuilt binary — Rosetta 2 works too) |
-| Windows (x86_64 / arm64) | `scoop install host-identity` (after `scoop bucket add dekobon https://github.com/dekobon/scoop-bucket`) |
-| Portable (Linux / macOS / Windows) | Download `host-identity-<ver>-<target>.tar.gz` / `.zip` and extract |
-| From source            | `cargo install host-identity-cli`                                            |
-
-Every package installs the binary at `host-identity` and the man
-pages (`host-identity(1)`, `host-identity-resolve(1)`,
-`host-identity-audit(1)`, `host-identity-sources(1)`) under the
-distro's standard `man1/` directory.
-
-Release artefacts are signed. Verify with `minisign` against the
-committed [`minisign.pub`](minisign.pub) and with GitHub's SLSA
-attestations:
+If you have a Rust toolchain:
 
 ```bash
-minisign -Vm SHA256SUMS -p minisign.pub
-gh attestation verify host-identity-<ver>-<target>.tar.gz -R dekobon/host-identity
+cargo install --locked host-identity-cli
 ```
 
-Gaps on v1: FreeBSD `aarch64` is not prebuilt (tier-3 Rust target) —
-use `cargo install` or the FreeBSD ports tree. Intel macOS (`x86_64`)
-is not prebuilt because GitHub's `macos-13` runner pool made releases
-unreliable; install via `cargo install host-identity-cli` or run the
-Apple-silicon build under Rosetta 2. macOS direct-download tarballs
-are unsigned/unnotarized; if Gatekeeper quarantines them, run
-`xattr -d com.apple.quarantine ./host-identity` once. Homebrew installs are
-unaffected.
+Every release tag (`v*`) also publishes prebuilt binaries and native
+packages (`.deb`, `.rpm`, `.apk`, FreeBSD `.pkg`, Homebrew bottle,
+Scoop manifest, portable `.tar.gz` / `.zip`) to
+[GitHub Releases](https://github.com/dekobon/host-identity/releases).
+See [`docs/install.md`](docs/install.md) for per-platform install
+commands, signature verification, upgrade/uninstall recipes, and the
+known platform-coverage gaps.
 
 ## Packaging
 
