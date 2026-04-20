@@ -242,10 +242,7 @@ const MACHINE_ID_DENYLIST: &[&str] = &[
 /// rejected rather than used as an identity.
 fn is_machine_id_garbage(value: &str) -> bool {
     let lower = value.to_ascii_lowercase();
-    if MACHINE_ID_DENYLIST.iter().any(|p| *p == lower) {
-        return true;
-    }
-    is_all_same_nibble_hex32(&lower)
+    MACHINE_ID_DENYLIST.contains(&lower.as_str()) || is_all_same_nibble_hex32(&lower)
 }
 
 /// Return `true` if `value` is exactly 32 hex digits and every digit is
@@ -257,21 +254,8 @@ fn is_machine_id_garbage(value: &str) -> bool {
 /// this one rejects hyphens because machine-id is specified as exactly
 /// 32 hex digits with no separators.
 fn is_all_same_nibble_hex32(value: &str) -> bool {
-    let mut chars = value.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    if !first.is_ascii_hexdigit() {
-        return false;
-    }
-    let mut count = 1usize;
-    for c in chars {
-        if c != first {
-            return false;
-        }
-        count += 1;
-    }
-    count == 32
+    let bytes = value.as_bytes();
+    bytes.len() == 32 && bytes[0].is_ascii_hexdigit() && bytes.iter().all(|b| *b == bytes[0])
 }
 
 fn read_machine_id_file(kind: SourceKind, path: &Path) -> Result<Option<Probe>, Error> {
