@@ -26,6 +26,7 @@ jump back to the relevant section when you need it.
 - [Lessons learned](#lessons-learned)
 - [Adding an identity source](#adding-an-identity-source)
 - [App-specific derivation](#app-specific-derivation)
+  - [From the CLI](#from-the-cli)
 
 ## Getting started
 
@@ -645,3 +646,28 @@ the privacy property holds regardless.
 **Not in default chains.** Derivation requires an `app_id`, a caller
 concern. `default_chain` / `network_default_chain` are unchanged;
 callers opt in explicitly.
+
+### From the CLI
+
+The `host-identity` CLI exposes the same derivation via `--app-id
+<APP_ID>`. When set, every source in the effective chain is wrapped
+with `AppSpecific` — including the `HOST_IDENTITY` env override,
+`HOST_IDENTITY_FILE`, cloud-metadata, and Kubernetes sources — and
+source labels in the output become `app-specific:<inner>` (e.g.
+`app-specific:machine-id`).
+
+```sh
+# Emit a per-app UUID from the default local chain.
+host-identity resolve --app-id com.example.telemetry
+
+# Same, in JSON; .source starts with "app-specific:".
+host-identity resolve --app-id com.example.telemetry --format json
+
+# Byte-exact AppSpecific UUID (no outer v5 re-hash).
+host-identity resolve --app-id com.example.telemetry --wrap passthrough
+```
+
+`APP_ID` is taken as a UTF-8 byte string — clap enforces UTF-8 on
+argv, so callers needing a non-UTF-8 `app_id` must use the library
+API. An empty `--app-id` is rejected with `EXIT_USAGE` (2); every
+other privacy caveat above applies unchanged.

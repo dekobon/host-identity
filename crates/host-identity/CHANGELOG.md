@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   demonstrating `AppSpecific<MachineIdFile>` with stability across
   repeated resolves and uncorrelatability across `app_id`s. See
   [#15](https://github.com/dekobon/host-identity/issues/15).
+- `Resolver::into_boxed_sources` drains a built resolver's chain in
+  order. Enables post-processing — for example, wrapping every source
+  with `AppSpecific` — before feeding the sources back via
+  `Resolver::with_boxed_sources`.
+- `host-identity-cli`: `--app-id <APP_ID>` flag on `resolve` and
+  `audit` wraps every source in the chain with `AppSpecific`,
+  surfacing the library's per-app derivation on the command line.
+  Source labels in `--format json` / audit output become
+  `app-specific:<inner>`. Companion to the library-side `AppSpecific`
+  entry above.
 
 ### Changed
 

@@ -129,6 +129,19 @@ Two apps on the same host with different `app_id`s get uncorrelatable
 IDs; the raw machine-id never leaves the process. See
 [`docs/developer-guide.md` → "App-specific derivation"](docs/developer-guide.md#app-specific-derivation).
 
+The CLI exposes the same derivation via `--app-id`, which wraps every
+source in the chain:
+
+```sh
+host-identity resolve --app-id com.example.telemetry
+host-identity resolve --app-id com.example.telemetry --format json
+```
+
+Source labels in the output become `app-specific:<inner>` (for example
+`app-specific:machine-id`). Pair with `--wrap passthrough` to emit the
+byte-exact AppSpecific UUID; the default `--wrap v5` additionally
+re-hashes it under this crate's namespace.
+
 ## Workspace layout
 
 | Crate                                                         | Purpose                                                            |

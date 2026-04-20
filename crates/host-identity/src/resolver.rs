@@ -121,6 +121,18 @@ impl Resolver {
         self.with_boxed_sources(sources.into_iter().map(|s| Box::new(s) as Box<dyn Source>))
     }
 
+    /// Drain the chain, returning its boxed sources in chain order.
+    ///
+    /// The wrap strategy is discarded — the caller reapplies one via
+    /// [`Resolver::with_wrap`] when rebuilding. Use when you need to
+    /// post-process the chain (for example, wrapping every source with
+    /// [`crate::sources::AppSpecific`]) and feed the sources back via
+    /// [`Resolver::with_boxed_sources`].
+    #[must_use]
+    pub fn into_boxed_sources(self) -> Vec<Box<dyn Source>> {
+        self.sources
+    }
+
     /// Replace the entire chain with an already-boxed, heterogeneous
     /// list. Use when you have sources of different concrete types —
     /// `with_sources` requires a single concrete type for all items, so

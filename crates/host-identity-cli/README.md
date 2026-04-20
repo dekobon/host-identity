@@ -57,6 +57,7 @@ host-identity audit --format json
 | `--wrap`             | `v5`, `v3`, `passthrough`       | `v5`    | How the raw ID becomes a UUID — see [Wrap strategies](#wrap-strategies). |
 | `--sources <ids>`    | comma-separated source IDs      | *(unset)* | Build a custom chain; see `host-identity sources`.              |
 | `--network`          | *(flag)*                        | off     | Adds cloud / k8s sources (requires `network` feature).     |
+| `--app-id <APP_ID>`  | UTF-8 byte string               | *(unset)* | Wrap every source with an HMAC-SHA256 per-app derivation — see [App-specific derivation](#app-specific-derivation). |
 
 ### Wrap strategies
 
@@ -75,6 +76,35 @@ API (`Resolver::with_wrap`) also exposes `UuidV5With(ns)` for callers
 who need v5 hashing under a caller-supplied namespace — the CLI does
 not expose that variant because it takes a non-stringly-typed namespace
 UUID.
+
+### App-specific derivation
+
+`--app-id <APP_ID>` wraps every source in the chain with an
+HMAC-SHA256 per-app derivation keyed on the inner source value. Two
+apps on the same host with different `APP_ID`s get uncorrelatable
+UUIDs; the raw inner value (machine-id, DMI UUID, hostid, …) never
+leaves the process.
+
+```bash
+host-identity resolve --app-id com.example.telemetry
+host-identity resolve --app-id com.example.telemetry --format json
+```
+
+Source labels in the output become `app-specific:<inner>` (e.g.
+`app-specific:machine-id`). `APP_ID` is not secret — privacy comes
+from not leaking the inner raw value, not from `APP_ID` being hidden;
+reverse-DNS identifiers are idiomatic. Non-UTF-8 `APP_ID` values must
+go through the library API.
+
+`--wrap` composes: `--wrap passthrough` emits the byte-exact
+AppSpecific UUID; the default `--wrap v5` additionally re-hashes it
+under this crate's private namespace. Wrapping a source whose raw
+value is already public (cloud instance IDs, Kubernetes pod UIDs) adds
+no privacy — the input was not secret. See
+[`docs/developer-guide.md` → "App-specific derivation"][devguide] for
+the algorithm and privacy caveats.
+
+[devguide]: https://github.com/dekobon/host-identity/blob/main/docs/developer-guide.md#app-specific-derivation
 
 ### Subcommands
 

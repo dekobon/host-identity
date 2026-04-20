@@ -18,8 +18,10 @@ use std::process::ExitCode;
 use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand, ValueEnum};
 use host_identity::ids::{resolver_from_ids, source_ids};
-use host_identity::sources::FileOverride;
-use host_identity::{HostId, ResolveOutcome, Resolver, SourceKind, UnknownSourceError, Wrap};
+use host_identity::sources::{AppSpecific, FileOverride};
+use host_identity::{
+    HostId, ResolveOutcome, Resolver, Source, SourceKind, UnknownSourceError, Wrap,
+};
 use serde::Serialize;
 
 /// Environment variable that, when set to a non-empty path, causes the
@@ -64,6 +66,9 @@ EXAMPLES:
 
     Build a custom chain from explicit source identifiers:
         host-identity resolve --sources env-override,machine-id,dmi
+
+    Derive a per-app UUID that doesn't leak the raw machine key:
+        host-identity resolve --app-id com.example.telemetry
 
     Emit machine-readable output:
         host-identity resolve --format json
@@ -172,6 +177,46 @@ Pick v5 unless you have a concrete interop requirement.",
     /// time spent waiting before falling through to the next source.
     #[arg(long, value_name = "MS", value_parser = clap::value_parser!(u64).range(1..))]
     network_timeout_ms: Option<u64>,
+
+    /// Wrap every source with an HMAC-SHA256 per-app derivation keyed on
+    /// the inner source value. Emits a per-app UUID; the inner raw value
+    /// never leaves the process.
+    #[arg(
+        long,
+        value_name = "APP_ID",
+        long_help = "\
+Wrap every source in the chain with an HMAC-SHA256 per-app derivation \
+keyed on the inner source value. When set, the resolver emits a per-app \
+UUID and the inner source's raw value never leaves the process.
+
+APP_ID is a UTF-8 byte string — reverse-DNS identifiers like \
+`com.example.telemetry` are idiomatic, but any stable bytes work. It is \
+NOT secret: privacy comes from not leaking the inner raw value, not from \
+APP_ID being hidden. The derived value is an identifier, not key material. \
+Callers needing a non-UTF-8 APP_ID must use the library API.
+
+Effect on the chain:
+  * Every source is wrapped, including the HOST_IDENTITY env override,
+    HOST_IDENTITY_FILE, cloud-metadata, and Kubernetes sources.
+  * Source labels in `--format json` and `audit` output become
+    `app-specific:<inner>` (e.g. `app-specific:machine-id`).
+
+Interaction with --wrap:
+  * v5 (default)     re-hashes the AppSpecific UUID under this crate's
+                     private namespace — per-app-unique AND
+                     namespace-separated from other tools that re-hash
+                     the same AppSpecific output.
+  * passthrough      round-trips the AppSpecific UUID unchanged — the
+                     \"byte-exact AppSpecific\" mode.
+  * v3               works, but v5 is preferred.
+
+Wrapping a source whose raw value is already public (cloud instance IDs, \
+Kubernetes pod UIDs readable via the API server) adds no privacy — the \
+input was not secret to begin with. Use this flag when you need to keep \
+a local machine key (machine-id, DMI, IoPlatformUuid, MachineGuid, \
+hostid, SMBIOS) out of your telemetry."
+    )]
+    app_id: Option<String>,
 }
 
 #[derive(Parser, Clone, Default)]
@@ -293,6 +338,19 @@ fn build_resolver(args: &ResolveArgs) -> Result<Resolver, CliError> {
     let mut resolver = resolver.with_wrap(Wrap::from(args.wrap));
     if let Some(file_override) = host_identity_file_override() {
         resolver = resolver.prepend(file_override);
+    }
+    if let Some(app_id) = args.app_id.as_deref() {
+        if app_id.is_empty() {
+            return usage(anyhow!("`--app-id` must not be empty"));
+        }
+        let wrap = Wrap::from(args.wrap);
+        let id_bytes = app_id.as_bytes();
+        let wrapped: Vec<Box<dyn Source>> = resolver
+            .into_boxed_sources()
+            .into_iter()
+            .map(|s| Box::new(AppSpecific::new(s, id_bytes)) as Box<dyn Source>)
+            .collect();
+        resolver = Resolver::new().with_boxed_sources(wrapped).with_wrap(wrap);
     }
     Ok(resolver)
 }
@@ -798,5 +856,35 @@ mod tests {
         ] {
             assert!(ids.contains(&id), "missing {id}");
         }
+    }
+
+    #[test]
+    fn build_resolver_with_app_id_wraps_every_source() {
+        let args = ResolveArgs {
+            sources: vec!["env-override".into(), "machine-id".into()],
+            app_id: Some("com.example.a".into()),
+            ..Default::default()
+        };
+        let resolver = build_resolver(&args).expect("app-id build");
+        let kinds = resolver.source_kinds();
+        assert_eq!(kinds.len(), 2);
+        for kind in &kinds {
+            let label = kind.as_str();
+            assert!(
+                label.starts_with("app-specific:"),
+                "expected wrapped label, got {label:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn build_resolver_with_empty_app_id_errors_usage() {
+        let args = ResolveArgs {
+            app_id: Some(String::new()),
+            ..Default::default()
+        };
+        let err = build_resolver(&args).expect_err("empty app-id must fail");
+        assert!(matches!(err, CliError::Usage(_)));
+        assert!(err.into_inner().to_string().contains("must not be empty"));
     }
 }
