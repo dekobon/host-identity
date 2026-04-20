@@ -32,7 +32,8 @@ host-identity = "1.0"
 ```
 
 Opt-in cloud metadata (AWS IMDSv2, GCP, Azure, DigitalOcean, Hetzner,
-OCI) and Kubernetes identity sources live behind feature flags.
+OCI, OpenStack) and Kubernetes identity sources live behind feature
+flags.
 Network-backed identity sources are generic over an `HttpTransport`
 trait; the crate ships no HTTP client, so it slots into whatever stack
 you already run on.

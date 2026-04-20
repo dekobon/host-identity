@@ -246,13 +246,14 @@ that OS contribute sources.
 8. DigitalOceanMetadata<T>            — feature "digitalocean"
 9. HetznerMetadata<T>                 — feature "hetzner"
 10. OciMetadata<T>                    — feature "oci"
-11. MachineIdFile / DbusMachineIdFile / DmiProductUuid — Linux
-12. IoPlatformUuid                    — macOS
-13. WindowsMachineGuid                — Windows
-14. FreeBsdHostIdFile / KenvSmbios    — FreeBSD
-15. SysctlKernHostId                  — NetBSD / OpenBSD
-16. IllumosHostId                     — illumos / Solaris
-17. KubernetesServiceAccount          — feature "k8s"
+11. OpenStackMetadata<T>              — feature "openstack"
+12. MachineIdFile / DbusMachineIdFile / DmiProductUuid — Linux
+13. IoPlatformUuid                    — macOS
+14. WindowsMachineGuid                — Windows
+15. FreeBsdHostIdFile / KenvSmbios    — FreeBSD
+16. SysctlKernHostId                  — NetBSD / OpenBSD
+17. IllumosHostId                     — illumos / Solaris
+18. KubernetesServiceAccount          — feature "k8s"
 ```
 
 ### Ordering principle
@@ -265,11 +266,11 @@ coarse service-account fallback pinned to the bottom:
   distinct IDs.
 - **ContainerId (3)** identifies the container runtime's view. For a
   standalone Docker container (no Kubernetes) this is the right layer.
-- **Cloud metadata (4–9)** identifies the VM instance. On a bare VM —
+- **Cloud metadata (5–11)** identifies the VM instance. On a bare VM —
   no pod, no container — this is the right layer.
-- **Platform-native sources (10–15)** are software state on the host.
+- **Platform-native sources (12–17)** are software state on the host.
   Always available, but most collision-prone of the per-host options.
-- **KubernetesServiceAccount (16)** yields only the pod's namespace, so
+- **KubernetesServiceAccount (18)** yields only the pod's namespace, so
   every pod in the namespace collides. Useful as a last-ditch fallback
   when everything else failed (unlikely but possible on exotic
   runtimes).
@@ -508,6 +509,23 @@ None of the plaintext providers error on an empty response body —
 unlike AWS, none of them return a structured document whose schema
 this crate needs to validate.
 
+### `OpenStackMetadata<T>`
+
+- GET `{base_url}/openstack/2018-08-27/meta_data.json`.
+- Transport error → `Ok(None)` (not on OpenStack / reachable).
+- Non-2xx response → `Ok(None)`.
+- Body not UTF-8 → `Ok(None)`.
+- Body lacks a top-level `uuid` field → `Err(Error::Platform("..."))`.
+  This is the "contract violation" case: the endpoint responded, so
+  we're on OpenStack, but the document doesn't match the documented
+  Nova schema. The caller should see that.
+- `uuid` value empty / whitespace after `normalize` → `Ok(None)`.
+- Otherwise → `Ok(Some(<uuid>))`.
+
+The `2018-08-27` metadata version is pinned deliberately: `uuid`
+itself has been present since `2012-08-10`, and pinning a stable
+dated version shields the probe from future-version schema drift.
+
 ## The wrap stage
 
 Once a source returns `Ok(Some(probe))`, the resolver converts the raw
@@ -597,6 +615,7 @@ authoritative document the implementation tracks; per-source rustdoc in
 | `DigitalOceanMetadata<T>`                   | [DigitalOcean: Droplet metadata API](https://docs.digitalocean.com/reference/api/metadata-api/)                                                                    |
 | `HetznerMetadata<T>`                        | [Hetzner Cloud: Server metadata](https://docs.hetzner.cloud/#server-metadata)                                                                                      |
 | `OciMetadata<T>`                            | [OCI: Getting instance metadata](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/gettingmetadata.htm)                                                     |
+| `OpenStackMetadata<T>`                      | [OpenStack Nova: metadata service](https://docs.openstack.org/nova/latest/user/metadata.html) · [Nova release index](https://releases.openstack.org/teams/nova.html) |
 | `Wrap::UuidV5*`, `Wrap::UuidV3Nil`          | [RFC 9562 § 5.3 (v3)](https://datatracker.ietf.org/doc/html/rfc9562#name-uuid-version-3) · [§ 5.5 (v5)](https://datatracker.ietf.org/doc/html/rfc9562#name-uuid-version-5) (obsoletes [RFC 4122](https://datatracker.ietf.org/doc/html/rfc4122)) |
 
 ## What this algorithm doesn't do

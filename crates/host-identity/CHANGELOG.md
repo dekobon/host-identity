@@ -65,6 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `host-identity`: new `OpenStackMetadata<T>` source (identifier
+  `"openstack-metadata"`, feature `openstack`) reading the
+  per-instance UUID from the OpenStack Nova metadata service at
+  `/openstack/2018-08-27/meta_data.json`. Joins `network_default_chain`
+  after `OciMetadata`. Uses the same flat-JSON top-level-boundary
+  scanner as `AwsImds` — no `serde_json` dependency. See
+  [#24](https://github.com/dekobon/host-identity/issues/24).
 - `LinuxHostIdFile` source reading glibc's 4-byte binary `/etc/hostid`
   (identifier `linux-hostid`). Opt-in — **not** part of `default_chain`
   or `network_default_chain`; operators who have the file (OpenZFS

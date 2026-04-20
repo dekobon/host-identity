@@ -35,6 +35,8 @@ digitalocean = ["_transport"]
 hetzner = ["_transport"]
 # Oracle Cloud Infrastructure instance OCID (IMDS v2).
 oci = ["_transport"]
+# OpenStack Nova instance UUID via the metadata service.
+openstack = ["_transport"]
 # Kubernetes pod UID, service-account namespace, and downward-API
 # projected files. No deps.
 k8s = []

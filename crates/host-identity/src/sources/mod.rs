@@ -124,6 +124,11 @@ mod oci;
 #[cfg(feature = "oci")]
 pub use oci::OciMetadata;
 
+#[cfg(feature = "openstack")]
+mod openstack;
+#[cfg(feature = "openstack")]
+pub use openstack::OpenStackMetadata;
+
 #[cfg(feature = "k8s")]
 mod kubernetes;
 #[cfg(feature = "k8s")]
@@ -205,6 +210,8 @@ where
     chain.push(Box::new(HetznerMetadata::new(transport.clone())));
     #[cfg(feature = "oci")]
     chain.push(Box::new(OciMetadata::new(transport.clone())));
+    #[cfg(feature = "openstack")]
+    chain.push(Box::new(OpenStackMetadata::new(transport.clone())));
     // `_transport` is only enabled by one of the cloud features, so
     // in a real build at least one branch above has fired. Drop
     // explicitly to keep the consumption of the moved parameter

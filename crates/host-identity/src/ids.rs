@@ -89,6 +89,9 @@ pub mod source_ids {
     pub const HETZNER_METADATA: &str = "hetzner-metadata";
     /// `"oci-metadata"` — [`crate::sources::OciMetadata`]. Requires transport.
     pub const OCI_METADATA: &str = "oci-metadata";
+    /// `"openstack-metadata"` — [`crate::sources::OpenStackMetadata`]. Requires
+    /// transport.
+    pub const OPENSTACK_METADATA: &str = "openstack-metadata";
     /// `"kubernetes-pod-uid"` — [`crate::sources::KubernetesPodUid`].
     pub const KUBERNETES_POD_UID: &str = "kubernetes-pod-uid";
     /// `"kubernetes-service-account"` — [`crate::sources::KubernetesServiceAccount`].
@@ -219,7 +222,8 @@ fn non_constructible_local(
         | SourceKind::AzureImds
         | SourceKind::DigitalOceanMetadata
         | SourceKind::HetznerMetadata
-        | SourceKind::OciMetadata => {
+        | SourceKind::OciMetadata
+        | SourceKind::OpenStackMetadata => {
             Some(Err(UnknownSourceError::RequiresTransport(kind.as_str())))
         }
         _ => None,
@@ -307,6 +311,11 @@ where
         SourceKind::OciMetadata => {
             feature_ctor!("oci", "oci-metadata", sources::OciMetadata::new(transport))
         }
+        SourceKind::OpenStackMetadata => feature_ctor!(
+            "openstack",
+            "openstack-metadata",
+            sources::OpenStackMetadata::new(transport)
+        ),
         _ => {
             // Drop the cloned transport explicitly — the fallback path
             // doesn't need it, and holding onto a clone until the end of
@@ -345,6 +354,7 @@ mod tests {
             SourceKind::DigitalOceanMetadata,
             SourceKind::HetznerMetadata,
             SourceKind::OciMetadata,
+            SourceKind::OpenStackMetadata,
             SourceKind::KubernetesPodUid,
             SourceKind::KubernetesServiceAccount,
             SourceKind::KubernetesDownwardApi,
@@ -383,6 +393,7 @@ mod tests {
             source_ids::DIGITAL_OCEAN_METADATA,
             source_ids::HETZNER_METADATA,
             source_ids::OCI_METADATA,
+            source_ids::OPENSTACK_METADATA,
             source_ids::KUBERNETES_POD_UID,
             source_ids::KUBERNETES_SERVICE_ACCOUNT,
             source_ids::KUBERNETES_DOWNWARD_API,

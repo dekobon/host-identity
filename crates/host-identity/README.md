@@ -119,10 +119,10 @@ their own recovery.
 implementing the `Source` trait. Use the default chain with one function
 call, or build your own in whatever order you like. Built-in opt-in
 identity sources cover the common cloud metadata services (AWS IMDSv2,
-GCP, Azure, DigitalOcean, Hetzner, OCI) and Kubernetes (pod UID,
-service-account namespace, downward-API projected files). For anything
-else — an HSM read, a custom config path, an in-house identity service —
-wrap a closure in `FnSource`.
+GCP, Azure, DigitalOcean, Hetzner, OCI, OpenStack) and Kubernetes
+(pod UID, service-account namespace, downward-API projected files).
+For anything else — an HSM read, a custom config path, an in-house
+identity service — wrap a closure in `FnSource`.
 
 **Bring-your-own HTTP client.** Network-backed identity sources are
 generic over an `HttpTransport` trait. The crate ships no HTTP client:
@@ -304,6 +304,7 @@ Available cloud sources (each behind its named feature):
 | `DigitalOceanMetadata<T>`| `digitalocean`  | `169.254.169.254/metadata/v1/id`                      |
 | `HetznerMetadata<T>`     | `hetzner`       | `169.254.169.254/hetzner/v1/metadata/instance-id`     |
 | `OciMetadata<T>`         | `oci`           | `169.254.169.254/opc/v2/instance/id`                  |
+| `OpenStackMetadata<T>`   | `openstack`     | `169.254.169.254/openstack/2018-08-27/meta_data.json` |
 
 Transport or HTTP-level failures (connection refused, TLS errors, non-2xx
 responses) all map to `Ok(None)`, so the resolver falls through to the
@@ -377,8 +378,8 @@ no-op (`Ok(None)`) off their native OS, so a portable chain needs no
 `cfg` gates at the call site.
 
 Opt-in sources: cloud metadata (AWS, GCP, Azure, DigitalOcean, Hetzner,
-OCI) and Kubernetes (pod UID, service-account namespace, downward-API
-projected files). See the sections below.
+OCI, OpenStack) and Kubernetes (pod UID, service-account namespace,
+downward-API projected files). See the sections below.
 
 ## Clone-collision risk by source
 
@@ -470,6 +471,7 @@ unless you have a concrete interop reason not to.
 - `digitalocean` — `DigitalOceanMetadata<T>`. Pulls in the `http` crate.
 - `hetzner` — `HetznerMetadata<T>`. Pulls in the `http` crate.
 - `oci` — `OciMetadata<T>`. Pulls in the `http` crate.
+- `openstack` — `OpenStackMetadata<T>`. Pulls in the `http` crate.
 - `k8s` — `KubernetesPodUid`, `KubernetesServiceAccount`,
   `KubernetesDownwardApi`. No extra dependencies.
 

@@ -144,6 +144,7 @@
 //! | [`sources::DigitalOceanMetadata`]   | `digitalocean` |
 //! | [`sources::HetznerMetadata`]        | `hetzner`      |
 //! | [`sources::OciMetadata`]            | `oci`          |
+//! | [`sources::OpenStackMetadata`]      | `openstack`    |
 //!
 //! Implement [`transport::HttpTransport`] for your HTTP client of choice
 //! (adapters are ~10 lines against `reqwest`, `ureq`, `hyper`, etc.), or

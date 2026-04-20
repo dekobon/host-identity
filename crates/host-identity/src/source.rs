@@ -130,6 +130,8 @@ pub enum SourceKind {
     HetznerMetadata,
     /// Oracle Cloud Infrastructure instance OCID.
     OciMetadata,
+    /// `OpenStack` Nova instance UUID via the metadata service.
+    OpenStackMetadata,
     /// Kubernetes pod UID derived from `/proc/self/mountinfo`.
     KubernetesPodUid,
     /// Kubernetes service-account namespace.
@@ -218,6 +220,7 @@ source_kind_ids! {
     DigitalOceanMetadata     => "digital-ocean-metadata",    "DigitalOcean Droplet numeric ID via the metadata service";
     HetznerMetadata          => "hetzner-metadata",          "Hetzner Cloud numeric server ID via the metadata service";
     OciMetadata              => "oci-metadata",              "Oracle Cloud Infrastructure instance OCID via the metadata service";
+    OpenStackMetadata        => "openstack-metadata",        "OpenStack Nova instance UUID via the metadata service";
     KubernetesPodUid         => "kubernetes-pod-uid",        "Kubernetes pod UID derived from /proc/self/mountinfo";
     KubernetesServiceAccount => "kubernetes-service-account","Kubernetes service-account namespace from the projected token volume";
     KubernetesDownwardApi    => "kubernetes-downward-api",   "caller-supplied Kubernetes downward-API projected file";

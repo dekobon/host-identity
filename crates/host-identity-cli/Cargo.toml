@@ -40,6 +40,7 @@ network = [
     "host-identity/digitalocean",
     "host-identity/hetzner",
     "host-identity/oci",
+    "host-identity/openstack",
     "host-identity/k8s",
 ]
 
