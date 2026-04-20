@@ -71,8 +71,10 @@ Configure these under **Settings → Secrets and variables → Actions**:
 | `SCOOP_BUCKET_TOKEN`     | Fine-grained PAT with write access to `dekobon/scoop-bucket`       |
 | `CARGO_REGISTRY_TOKEN`   | crates.io API token scoped to `publish-new` + `publish-update` for `host-identity` and `host-identity-cli`. The workflow maps the secret to the env var of the same name, which `cargo publish` reads natively. |
 
-If `HOMEBREW_TAP_TOKEN` or `SCOOP_BUCKET_TOKEN` is missing, those
-steps log a message and skip without failing the release.
+If `HOMEBREW_TAP_TOKEN` or `SCOOP_BUCKET_TOKEN` is missing — or if the
+target tap/bucket repo is unreachable (deleted, renamed, or the PAT
+cannot see it) — those steps emit a GitHub Actions warning and skip
+without failing the release.
 
 If `CARGO_REGISTRY_TOKEN` is missing, the `publish-crates` job **fails**
 at the first `cargo publish` call with a "no upload token" error —

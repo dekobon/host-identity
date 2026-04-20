@@ -1085,6 +1085,10 @@ jobs:
           fi
           REPO="https://github.com/dekobon/homebrew-host-identity.git"
           AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$HOMEBREW_TAP_TOKEN" | base64 -w0)"
+          if ! git -c "http.extraheader=$AUTH_HEADER" ls-remote "$REPO" &>/dev/null; then
+            echo "::warning::tap repo $REPO not reachable — skipping tap push"
+            exit 0
+          fi
           git -c "http.extraheader=$AUTH_HEADER" clone "$REPO" tap
           mkdir -p tap/Formula
           cp host-identity.rb tap/Formula/host-identity.rb
@@ -1125,6 +1129,10 @@ jobs:
           fi
           REPO="https://github.com/dekobon/scoop-bucket.git"
           AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$SCOOP_BUCKET_TOKEN" | base64 -w0)"
+          if ! git -c "http.extraheader=$AUTH_HEADER" ls-remote "$REPO" &>/dev/null; then
+            echo "::warning::bucket repo $REPO not reachable — skipping bucket push"
+            exit 0
+          fi
           git -c "http.extraheader=$AUTH_HEADER" clone "$REPO" bucket
           mkdir -p bucket/bucket
           cp host-identity.json bucket/bucket/host-identity.json
