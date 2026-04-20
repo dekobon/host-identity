@@ -188,20 +188,6 @@ fn push_native_sources(chain: &mut Vec<Box<dyn Source>>) {
     let _ = chain;
 }
 
-#[cfg(feature = "k8s")]
-fn push_k8s_pod_uid(chain: &mut Vec<Box<dyn Source>>) {
-    chain.push(Box::new(KubernetesPodUid::default()));
-}
-#[cfg(not(feature = "k8s"))]
-fn push_k8s_pod_uid(_chain: &mut Vec<Box<dyn Source>>) {}
-
-#[cfg(feature = "k8s")]
-fn push_k8s_service_account(chain: &mut Vec<Box<dyn Source>>) {
-    chain.push(Box::new(KubernetesServiceAccount::default()));
-}
-#[cfg(not(feature = "k8s"))]
-fn push_k8s_service_account(_chain: &mut Vec<Box<dyn Source>>) {}
-
 #[cfg(feature = "_transport")]
 fn push_cloud_sources<T>(chain: &mut Vec<Box<dyn Source>>, transport: T)
 where
@@ -242,10 +228,12 @@ where
 {
     let mut chain: Vec<Box<dyn Source>> = Vec::new();
     push_env_override(&mut chain);
-    push_k8s_pod_uid(&mut chain);
+    #[cfg(feature = "k8s")]
+    chain.push(Box::new(KubernetesPodUid::default()));
     push_container_sources(&mut chain);
     push_cloud_sources(&mut chain, transport);
     push_native_sources(&mut chain);
-    push_k8s_service_account(&mut chain);
+    #[cfg(feature = "k8s")]
+    chain.push(Box::new(KubernetesServiceAccount::default()));
     chain
 }

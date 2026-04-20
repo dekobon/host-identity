@@ -458,6 +458,44 @@ fn empty_raw_identifier_in_resolve_all_becomes_errored() {
     ));
 }
 
+#[cfg(all(feature = "k8s", feature = "aws"))]
+#[test]
+fn network_default_chain_bookends_k8s_sources_when_enabled() {
+    // Regression for #22: k8s pod UID is the first non-override source
+    // in the network chain and the service-account source is the last.
+    // A refactor that silently no-op'd either of them (by mis-gating
+    // the cfg) would compile fine without this assertion.
+    use host_identity::sources::network_default_chain;
+    use host_identity::transport::HttpTransport;
+    use std::convert::Infallible;
+
+    #[derive(Clone)]
+    struct Unused;
+    impl HttpTransport for Unused {
+        type Error = Infallible;
+        fn send(
+            &self,
+            _request: http::Request<Vec<u8>>,
+        ) -> Result<http::Response<Vec<u8>>, Self::Error> {
+            unreachable!("chain construction must not hit the transport");
+        }
+    }
+
+    let chain = network_default_chain(Unused);
+    let kinds = Resolver::new().with_boxed_sources(chain).source_kinds();
+    assert_eq!(kinds.first(), Some(&SourceKind::EnvOverride));
+    assert_eq!(
+        kinds.get(1),
+        Some(&SourceKind::KubernetesPodUid),
+        "k8s pod UID must sit right after env override; got {kinds:?}",
+    );
+    assert_eq!(
+        kinds.last(),
+        Some(&SourceKind::KubernetesServiceAccount),
+        "service-account must be the last entry; got {kinds:?}",
+    );
+}
+
 #[test]
 fn wrap_is_deterministic_across_calls() {
     let a = Resolver::new()

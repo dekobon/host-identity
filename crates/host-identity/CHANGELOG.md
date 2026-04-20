@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `host-identity`: the default-feature build no longer emits
+  `dead_code` warnings for `push_k8s_pod_uid` /
+  `push_k8s_service_account`. Inlined the k8s pushes into
+  `network_default_chain` so they're only compiled when their only
+  caller is compiled. A new integration test pins the ordering
+  contract (pod UID first after env override, service-account last).
+  See [#22](https://github.com/dekobon/host-identity/issues/22).
 - `host-identity-cli`: empty tokens in `--sources` (from `""`, leading
   comma, trailing comma, or a doubled comma like `foo,,bar`) are now
   rejected up-front with `--sources contains an empty identifier`
