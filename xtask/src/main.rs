@@ -62,7 +62,7 @@ fn render_subcommands(parent: &clap::Command, prefix: &str, out_dir: &Path) -> i
         if sub.get_name() == "help" {
             continue;
         }
-        let full_name = format!("{}-{}", prefix, sub.get_name());
+        let full_name = format!("{prefix}-{}", sub.get_name());
         // Recurse first so we can hand ownership of `full_name` to clap
         // on the last line — avoids cloning it for the recursion.
         render_subcommands(sub, &full_name, out_dir)?;

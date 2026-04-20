@@ -1029,14 +1029,13 @@ mod tests {
         ];
         for ids in cases {
             let args = ResolveArgs {
-                sources: ids.iter().map(|s| (*s).to_owned()).collect(),
+                sources: ids.iter().map(|&s| s.to_string()).collect(),
                 ..Default::default()
             };
-            let Err(err) = validate_resolve_args(&args) else {
-                panic!("empty id {ids:?} must fail");
+            let Err(CliError::Usage(err)) = validate_resolve_args(&args) else {
+                panic!("empty id {ids:?} must fail as a usage error");
             };
-            assert!(matches!(err, CliError::Usage(_)));
-            let msg = err.into_inner().to_string();
+            let msg = err.to_string();
             assert!(
                 msg.contains("`--sources`") && msg.contains("empty identifier"),
                 "error should name the flag and describe the problem for {ids:?}: {msg}",
@@ -1059,8 +1058,9 @@ mod tests {
             resolve.sources,
             vec!["machine-id".to_owned(), String::new(), "dmi".to_owned()],
         );
-        let err = validate_resolve_args(&resolve).expect_err("empty id must fail");
-        assert!(matches!(err, CliError::Usage(_)));
+        let Err(CliError::Usage(_)) = validate_resolve_args(&resolve) else {
+            panic!("empty id must fail as a usage error");
+        };
     }
 
     #[test]
