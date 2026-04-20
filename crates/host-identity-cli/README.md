@@ -49,6 +49,28 @@ host-identity resolve --format json
 host-identity audit --format json
 ```
 
+Both JSON outputs are wrapped in an envelope that records the active
+`--wrap` strategy, so saved output is self-describing:
+
+```json
+// resolve --format json
+{
+  "wrap": "v5",
+  "host_id": { "uuid": "…", "source": "machine-id", "in_container": false }
+}
+
+// audit --format json
+{
+  "wrap": "v5",
+  "entries": [
+    { "source": "…", "status": "found", "uuid": "…", "error": null, "in_container": false }
+  ]
+}
+```
+
+`sources --json` is unchanged (an array of `{id, description}`) — it
+lists static source metadata and has no wrap dependency.
+
 ### Flags
 
 | Flag                 | Values                          | Default | Notes                                                      |

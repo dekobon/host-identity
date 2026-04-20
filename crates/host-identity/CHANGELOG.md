@@ -43,6 +43,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Breaking (CLI JSON):** `host-identity resolve --format json` and
+  `host-identity audit --format json` now emit an envelope recording
+  the active `--wrap` strategy. `resolve` returns
+  `{"wrap": "<v5|v3|passthrough>", "host_id": { … }}` and `audit`
+  returns `{"wrap": "…", "entries": [ … ]}`. The per-entry schema is
+  unchanged; the top-level shape is. `sources --json` is unaffected.
+  Consumers that previously indexed `resolve` output by `.uuid` /
+  `.source` should now read `.host_id.uuid` / `.host_id.source`;
+  consumers that treated `audit` output as a bare array should read
+  `.entries`.
 - `MachineIdFile` and `DbusMachineIdFile` now reject known-duplicate
   `/etc/machine-id` values via a conservative static deny-list plus an
   all-same-nibble hex32 check. Seeded with the Whonix / Kicksecure

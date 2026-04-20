@@ -150,12 +150,18 @@ fn app_id_wraps_host_identity_file_override() {
     assert_success(&out);
     let stdout = String::from_utf8(out.stdout).expect("stdout is utf-8");
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
-    let source = parsed["source"].as_str().expect("source is a string");
+    assert_eq!(
+        parsed["wrap"].as_str(),
+        Some("v5"),
+        "default --wrap must be reflected in JSON envelope",
+    );
+    let host_id = &parsed["host_id"];
+    let source = host_id["source"].as_str().expect("source is a string");
     assert_eq!(
         source, "app-specific:file-override",
         "HOST_IDENTITY_FILE must be wrapped with app-specific",
     );
-    let uuid = parsed["uuid"].as_str().expect("uuid is a string");
+    let uuid = host_id["uuid"].as_str().expect("uuid is a string");
     assert_ne!(
         uuid, PINNED_UUID,
         "raw file contents must not leak through to the output UUID",
@@ -171,7 +177,9 @@ fn app_id_source_label_is_prefixed_in_json_output() {
     assert_success(&out);
     let stdout = String::from_utf8(out.stdout).expect("stdout is utf-8");
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
-    let source = parsed["source"].as_str().expect("source is a string");
+    let source = parsed["host_id"]["source"]
+        .as_str()
+        .expect("source is a string");
     assert!(
         source.starts_with("app-specific:"),
         "source label should be prefixed; got {source:?}",

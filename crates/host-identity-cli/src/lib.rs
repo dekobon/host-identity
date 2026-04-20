@@ -233,7 +233,8 @@ enum Format {
     Json,
 }
 
-#[derive(ValueEnum, Clone, Copy, Default)]
+#[derive(ValueEnum, Serialize, Clone, Copy, Default)]
+#[serde(rename_all = "lowercase")]
 enum WrapArg {
     #[default]
     V5,
@@ -434,7 +435,7 @@ fn run_resolve(args: &ResolveArgs) -> Result<(), CliError> {
         .resolve()
         .context("no source produced a host identity")
         .map_err(CliError::Runtime)?;
-    print_host_id(&id, args.format).map_err(CliError::Runtime)
+    print_host_id(&id, args.format, args.wrap).map_err(CliError::Runtime)
 }
 
 fn run_audit(args: &ResolveArgs) -> Result<(), CliError> {
@@ -443,7 +444,10 @@ fn run_audit(args: &ResolveArgs) -> Result<(), CliError> {
     let mut buf = Vec::new();
     match args.format {
         Format::Json => {
-            let report: Vec<AuditEntry> = outcomes.iter().map(AuditEntry::from).collect();
+            let report = AuditReport {
+                wrap: args.wrap,
+                entries: outcomes.iter().map(AuditEntry::from).collect(),
+            };
             serde_json::to_writer_pretty(&mut buf, &report).map_err(runtime_err)?;
             buf.push(b'\n');
         }
@@ -512,16 +516,19 @@ struct SourceEntry {
     description: &'static str,
 }
 
-fn print_host_id(id: &HostId, format: Format) -> Result<()> {
+fn print_host_id(id: &HostId, format: Format, wrap: WrapArg) -> Result<()> {
     let mut buf = Vec::new();
     match format {
         Format::Plain => writeln!(buf, "{id}")?,
         Format::Summary => writeln!(buf, "{}", id.summary())?,
         Format::Json => {
-            let out = HostIdJson {
-                uuid: id.as_uuid().to_string(),
-                source: id.source().as_str(),
-                in_container: id.in_container(),
+            let out = HostIdReport {
+                wrap,
+                host_id: HostIdJson {
+                    uuid: id.as_uuid().to_string(),
+                    source: id.source().as_str(),
+                    in_container: id.in_container(),
+                },
             };
             serde_json::to_writer_pretty(&mut buf, &out)?;
             buf.push(b'\n');
@@ -532,10 +539,22 @@ fn print_host_id(id: &HostId, format: Format) -> Result<()> {
 }
 
 #[derive(Serialize)]
+struct HostIdReport {
+    wrap: WrapArg,
+    host_id: HostIdJson,
+}
+
+#[derive(Serialize)]
 struct HostIdJson {
     uuid: String,
     source: &'static str,
     in_container: bool,
+}
+
+#[derive(Serialize)]
+struct AuditReport {
+    wrap: WrapArg,
+    entries: Vec<AuditEntry>,
 }
 
 #[derive(Serialize, Clone, Copy)]
@@ -792,17 +811,36 @@ mod tests {
         // Pins the `--format json` schema for `host-identity resolve`. Any field
         // rename or case change breaks downstream script parsers; this
         // snapshot catches that at test time.
-        let sample = HostIdJson {
-            uuid: "11111111-2222-3333-4444-555555555555".to_owned(),
-            source: "machine-id",
-            in_container: false,
+        let sample = HostIdReport {
+            wrap: WrapArg::V5,
+            host_id: HostIdJson {
+                uuid: "11111111-2222-3333-4444-555555555555".to_owned(),
+                source: "machine-id",
+                in_container: false,
+            },
         };
         let json = serde_json::to_value(&sample).unwrap();
         let obj = json.as_object().unwrap();
-        assert_eq!(obj.len(), 3);
-        assert_eq!(obj["uuid"], "11111111-2222-3333-4444-555555555555");
-        assert_eq!(obj["source"], "machine-id");
-        assert_eq!(obj["in_container"], false);
+        assert_eq!(obj.len(), 2);
+        assert_eq!(obj["wrap"], "v5");
+        let inner = obj["host_id"].as_object().unwrap();
+        assert_eq!(inner.len(), 3);
+        assert_eq!(inner["uuid"], "11111111-2222-3333-4444-555555555555");
+        assert_eq!(inner["source"], "machine-id");
+        assert_eq!(inner["in_container"], false);
+    }
+
+    #[test]
+    fn wrap_arg_serializes_to_lowercase_flag_string() {
+        // The `wrap` field in JSON output must match the CLI flag values
+        // verbatim so saved output round-trips back through `--wrap`.
+        for (variant, expected) in [
+            (WrapArg::V5, "v5"),
+            (WrapArg::V3, "v3"),
+            (WrapArg::Passthrough, "passthrough"),
+        ] {
+            assert_eq!(serde_json::to_value(variant).unwrap(), expected);
+        }
     }
 
     #[test]
@@ -821,9 +859,15 @@ mod tests {
             .push(err_src)
             .push(skip_src)
             .resolve_all();
-        let entries: Vec<AuditEntry> = outcomes.iter().map(AuditEntry::from).collect();
-        let json = serde_json::to_value(&entries).unwrap();
-        let arr = json.as_array().unwrap();
+        let report = AuditReport {
+            wrap: WrapArg::V5,
+            entries: outcomes.iter().map(AuditEntry::from).collect(),
+        };
+        let json = serde_json::to_value(&report).unwrap();
+        let envelope = json.as_object().unwrap();
+        assert_eq!(envelope.len(), 2);
+        assert_eq!(envelope["wrap"], "v5");
+        let arr = envelope["entries"].as_array().unwrap();
         assert_eq!(arr.len(), 3);
         assert_eq!(arr[0]["status"], "found");
         assert!(arr[0]["uuid"].is_string());

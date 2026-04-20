@@ -660,7 +660,7 @@ source labels in the output become `app-specific:<inner>` (e.g.
 # Emit a per-app UUID from the default local chain.
 host-identity resolve --app-id com.example.telemetry
 
-# Same, in JSON; .source starts with "app-specific:".
+# Same, in JSON; .host_id.source starts with "app-specific:".
 host-identity resolve --app-id com.example.telemetry --format json
 
 # Byte-exact AppSpecific UUID (no outer v5 re-hash).

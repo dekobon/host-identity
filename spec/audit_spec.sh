@@ -50,9 +50,10 @@ Describe 'host-identity audit'
       # separately in dedicated examples.
       # shellcheck disable=SC2312
       host_identity audit --format json \
-        | jq -e 'type == "array" and length > 0
-                 and all(.[]; .source | type == "string")
-                 and all(.[]; .status | IN("found","skipped","errored"))' \
+        | jq -e '(.wrap | IN("v5","v3","passthrough"))
+                 and (.entries | type == "array" and length > 0
+                                 and all(.[]; .source | type == "string")
+                                 and all(.[]; .status | IN("found","skipped","errored")))' \
           >/dev/null
     }
     When call audit_json_check
