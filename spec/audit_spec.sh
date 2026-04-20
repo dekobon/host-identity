@@ -20,7 +20,7 @@ Describe 'host-identity audit'
     # file.
     audit_head() {
       rc_file=$(mktemp)
-      { "$HOST_IDENTITY_BIN" audit; printf '%s' "$?" > "$rc_file"; } \
+      { host_identity audit; printf '%s' "$?" > "$rc_file"; } \
         | head -n1 >/dev/null
       rc=$(cat "$rc_file")
       rm -f "$rc_file"
@@ -28,6 +28,17 @@ Describe 'host-identity audit'
     }
     When call audit_head
     The status should equal 0
+  End
+
+  It 'exits 1 with a stderr diagnostic when every source skips'
+    # `--sources env-override` plus an unset HOST_IDENTITY guarantees
+    # the only source skips, so audit must surface the runtime exit code
+    # documented in the lib module. stdout still carries the per-source
+    # report — that's the whole point of audit — so we acknowledge it.
+    When call host_identity audit --sources env-override
+    The status should equal 1
+    The stderr should include 'no source produced a host identity'
+    The stdout should include '(skipped)'
   End
 
   It 'emits valid JSON with the documented status taxonomy under --format json'

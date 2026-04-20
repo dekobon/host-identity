@@ -15,11 +15,16 @@ Describe 'help and version'
   End
 
   It '--help mentions both HOST_IDENTITY and HOST_IDENTITY_FILE'
+    # Two independent assertions: HOST_IDENTITY_FILE matches the second
+    # `include`, and `match pattern` requires HOST_IDENTITY to appear
+    # followed by something other than the underscore that would make it
+    # part of HOST_IDENTITY_FILE — proving both names are documented
+    # separately, not just one of them.
     When call host_identity --help
     The status should equal 0
     The stderr should be blank
-    The stdout should include 'HOST_IDENTITY'
     The stdout should include 'HOST_IDENTITY_FILE'
+    The stdout should match pattern '*HOST_IDENTITY [!_]*'
   End
 
   It 'resolve --help documents --sources, --wrap, and --format'

@@ -156,6 +156,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Install under $RUNNER_TEMP so the extracted tree never
+          # appears inside the workspace checkout (Cargo would ignore it
+          # but it would still pollute `git status` for any later step).
+          cd "$RUNNER_TEMP"
           url="https://github.com/shellspec/shellspec/archive/refs/tags/${SHELLSPEC_VERSION}.tar.gz"
           curl -fsSL -o shellspec.tar.gz "$url"
           case "$RUNNER_OS" in
@@ -164,7 +168,7 @@ jobs:
             *)      echo "unsupported runner OS: $RUNNER_OS" >&2; exit 1 ;;
           esac
           tar -xzf shellspec.tar.gz
-          echo "$PWD/shellspec-${SHELLSPEC_VERSION}/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/shellspec-${SHELLSPEC_VERSION}/bin" >> "$GITHUB_PATH"
       - name: Build CLI
         run: cargo build -p host-identity-cli --locked
       - name: Run shellspec suite

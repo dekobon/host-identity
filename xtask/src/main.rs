@@ -7,7 +7,9 @@
 #![allow(clippy::pedantic)]
 
 use std::{
-    env, fs, io,
+    env,
+    ffi::OsStr,
+    fs, io,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
 };
@@ -17,13 +19,15 @@ use clap::CommandFactory;
 fn main() -> ExitCode {
     let workspace_root = workspace_root();
     let mut args = env::args_os().skip(1);
-    let first = args.next();
-    let rest: Vec<_> = args.collect();
-    match first.as_ref().and_then(|s| s.to_str()) {
+    // `to_str()` returns None for non-UTF-8 — route those to the unknown
+    // arm so a stray non-UTF-8 byte cannot silently invoke man-page
+    // generation.
+    match args.next().as_deref().map(OsStr::to_str) {
         None => run_manpages(&workspace_root).map_or_else(io_exit, |()| ExitCode::SUCCESS),
-        Some("shellspec") => run_shellspec(&workspace_root, &rest),
+        Some(Some("shellspec")) => run_shellspec(&workspace_root, &args.collect::<Vec<_>>()),
         Some(other) => {
-            eprintln!("xtask: unknown subcommand `{other}` (expected none or `shellspec`)");
+            let label = other.unwrap_or("<non-utf8>");
+            eprintln!("xtask: unknown subcommand `{label}` (expected none or `shellspec`)");
             ExitCode::from(2)
         }
     }
@@ -82,8 +86,10 @@ fn render_man_page(cmd: &clap::Command, out_dir: &Path) -> io::Result<()> {
 }
 
 fn run_shellspec(workspace_root: &Path, extra: &[std::ffi::OsString]) -> ExitCode {
+    // `--locked` matches the CI step so a developer's local lockfile drift
+    // surfaces here rather than being papered over by an implicit update.
     let build = Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
-        .args(["build", "-p", "host-identity-cli"])
+        .args(["build", "-p", "host-identity-cli", "--locked"])
         .current_dir(workspace_root)
         .status();
     match build {
