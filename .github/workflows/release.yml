@@ -594,8 +594,13 @@ jobs:
               # stage — `publish` runs later — so the fetch 404s. Point
               # SRCDEST at the pre-copied tarball alongside the APKBUILD.
               su builder -c "cd /home/builder/host-identity && SRCDEST=/home/builder/host-identity abuild -F -r"
+              # Diagnostic: show abuild output tree in case find below misses it.
+              echo "::group::abuild output tree"
+              find /home/builder/packages -type f || true
+              echo "::endgroup::"
               find /home/builder/packages -name \"*.apk\" -exec cp {} /out/ \;
               cp /home/builder/host-identity/APKBUILD /out/APKBUILD.${APK_ARCH}
+              ls -la /out
             '
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -694,6 +699,13 @@ jobs:
           docker run --rm --platform "linux/${ARCH}" \
             -v "$PWD/dist:/w" -e VERSION -e DEBIAN_FRONTEND=noninteractive \
             "$IMAGE" bash -eux -c '
+              # Docker Ubuntu images ship /etc/dpkg/dpkg.cfg.d/docker-clean
+              # (and sometimes /excludes) with path-exclude= lines that
+              # block /usr/share/doc and /usr/share/man from being written
+              # on install. That filters our man pages and license files
+              # out, which is what broke the smoke assertions. Remove
+              # those configs so dpkg ships the full payload.
+              rm -f /etc/dpkg/dpkg.cfg.d/docker-clean /etc/dpkg/dpkg.cfg.d/excludes
               apt-get update -qq
               apt-get install -y -qq man-db /w/*.deb
               host-identity --version | grep -F "$VERSION"
@@ -776,8 +788,14 @@ jobs:
           DOCKER_ARCH=$([[ "$ARCH" == "aarch64" ]] && echo arm64 || echo amd64)
           docker run --rm --platform "linux/${DOCKER_ARCH}" \
             -v "$PWD/dist:/w" -e VERSION \
-            alpine:3.20 sh -eu -c '
-              apk add --no-cache --allow-untrusted /w/*.apk mandoc
+            alpine:3.20 sh -eux -c '
+              # `path: out/apk/**` upload preserves the artifact directory
+              # structure, so the .apk may land at /w/*.apk or /w/apk/*.apk
+              # depending on upload-artifact version. Locate it instead of
+              # relying on a fixed glob.
+              APK=$(find /w -name "*.apk" | head -n1)
+              test -n "$APK" || { echo "no .apk found under /w"; find /w; exit 1; }
+              apk add --no-cache --allow-untrusted "$APK" mandoc
               host-identity --version | grep -F "$VERSION"
               ls /usr/share/man/man1/host-identity.1* >/dev/null
               test -s /usr/share/licenses/host-identity/THIRD-PARTY-LICENSES.md
@@ -798,9 +816,12 @@ jobs:
           release: "14.0"
           usesh: true
           run: |
-            set -eu
+            set -eux
             PKG=$(ls dist/*.pkg | head -n1)
             pkg install -y "$PKG"
+            # Diagnostic: print files the package installed — if the
+            # binary is missing, `pkg info -l` exposes it.
+            pkg info -l host-identity
             host-identity --version | grep -F "${{ needs.preflight.outputs.version }}"
             test -f /usr/local/share/man/man1/host-identity.1.gz
             test -s /usr/local/share/licenses/host-identity/THIRD-PARTY-LICENSES.md
