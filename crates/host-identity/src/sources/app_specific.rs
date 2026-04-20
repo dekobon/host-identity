@@ -75,9 +75,6 @@ type HmacSha256 = Hmac<Sha256>;
 /// Wrapper source that HMACs the inner source's probe value with a
 /// caller-supplied `app_id`, emitting a UUID-shaped probe.
 ///
-/// See the [module-level docs](self) for the construction, the
-/// `Wrap::Passthrough` contract, and the systemd byte-compat caveat.
-///
 /// # Example
 ///
 /// ```no_run
