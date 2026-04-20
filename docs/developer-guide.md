@@ -581,12 +581,15 @@ per-pod-per-app ID. See
 for the scope rules.
 
 **systemd byte-compat caveat.** `systemd-id128 machine-id
---app-specific=<X>` keys on the raw machine-id bytes and messages on a
-16-byte UUID. `AppSpecific::new` accepts arbitrary `&[u8]` for
-`app_id` — passing anything other than exactly 16 bytes derived from a
-UUID forfeits systemd byte-compat. Rust callers typically don't care;
-they pass whatever stable byte string identifies their application
-(reverse DNS, a random UUID, a git SHA).
+--app-specific=<X>` uses the **parsed 16 raw bytes** of
+`/etc/machine-id` as the HMAC key. The built-in `MachineIdFile`
+source emits the 32 hex ASCII characters instead, so
+`AppSpecific<MachineIdFile>` HMACs with a 32-byte ASCII key —
+different bytes, same UUID shape. Exact byte-compat requires wrapping
+a custom source (e.g. a `FnSource` that parses the hex into 16 raw
+bytes) and passing a 16-byte UUID-derived `app_id`. Rust callers that
+don't need systemd interop can pass arbitrary `&[u8]` for `app_id`;
+the privacy property holds regardless.
 
 **Privacy caveats.**
 

@@ -29,13 +29,21 @@
 //!
 //! # systemd byte-compat
 //!
-//! Byte-compatibility with
-//! `systemd-id128 machine-id --app-specific=<app-uuid>` holds **only**
-//! when `app_id` is exactly 16 bytes derived from the same UUID
-//! systemd would accept on its CLI, and the inner source is
-//! [`crate::sources::MachineIdFile`] (raw 32-hex machine-id bytes as
-//! the HMAC key). Rust callers are free to pass arbitrary `&[u8]`
-//! app-ids — they just forfeit the systemd byte-compat side effect.
+//! `systemd-id128 machine-id --app-specific=<X>` uses the **parsed
+//! 16 raw bytes** of `/etc/machine-id` as the HMAC key and a 16-byte
+//! UUID as the message. The built-in
+//! [`crate::sources::MachineIdFile`] source emits the 32 hex ASCII
+//! characters of the machine-id as its probe value, so
+//! `AppSpecific<MachineIdFile>` HMACs with a 32-byte ASCII key — a
+//! different key than systemd uses. The output UUID shape matches,
+//! but the output bytes do **not**. Callers needing exact byte-compat
+//! must wrap a custom source that emits the 16 raw bytes (e.g. a
+//! [`crate::sources::FnSource`] that reads `/etc/machine-id`, parses
+//! the hex, and returns the 16 bytes as a string of those bytes) and
+//! pass a 16-byte UUID-derived `app_id`. Rust callers that don't care
+//! about systemd interop can pass arbitrary `&[u8]` for `app_id`; the
+//! privacy property (stable + uncorrelatable + non-leaking) holds
+//! regardless of shape.
 //!
 //! # Privacy caveats
 //!
@@ -50,7 +58,9 @@
 //! - The derived ID is an identifier, **not** key material. Callers
 //!   must not use it as a cryptographic key.
 
+use std::collections::HashMap;
 use std::fmt;
+use std::sync::{Mutex, OnceLock};
 
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -99,22 +109,35 @@ impl<S: Source> AppSpecific<S> {
     /// # Label interning
     ///
     /// The composed provenance label `app-specific:<inner-id>` is
-    /// allocated once per `AppSpecific::new` call and leaked for the
-    /// program's lifetime so that [`Source::kind`] can return it
-    /// through [`SourceKind::Custom`]. Construction rate is bounded in
-    /// practice (sources are built once per resolver), so the leak is
-    /// accepted in exchange for not holding a process-wide lock on a
-    /// string interner.
+    /// interned in a process-global map keyed on the inner source's
+    /// `&'static str` identifier, so memory consumption is bounded by
+    /// the number of **distinct** inner source kinds ever wrapped —
+    /// not the number of `AppSpecific::new` calls. Interned strings
+    /// are leaked for the program's lifetime to satisfy the
+    /// `SourceKind::Custom(&'static str)` contract.
     #[must_use]
     pub fn new(inner: S, app_id: impl Into<Vec<u8>>) -> Self {
-        let label: &'static str =
-            Box::leak(format!("app-specific:{}", inner.kind().as_str()).into_boxed_str());
+        let label = intern_label(inner.kind().as_str());
         Self {
             inner,
             app_id: app_id.into(),
             label,
         }
     }
+}
+
+fn intern_label(inner_id: &'static str) -> &'static str {
+    static INTERNER: OnceLock<Mutex<HashMap<&'static str, &'static str>>> = OnceLock::new();
+    let mut map = INTERNER
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("label interner mutex poisoned");
+    if let Some(&existing) = map.get(inner_id) {
+        return existing;
+    }
+    let leaked: &'static str = Box::leak(format!("app-specific:{inner_id}").into_boxed_str());
+    map.insert(inner_id, leaked);
+    leaked
 }
 
 impl<S: Source> fmt::Debug for AppSpecific<S> {
@@ -345,6 +368,19 @@ mod tests {
             }
             other => panic!("unexpected error variant: {other:?}"),
         }
+    }
+
+    #[test]
+    fn label_is_interned_across_constructions() {
+        // Two AppSpecific instances over the same inner kind must
+        // share the same leaked &'static str — memory consumption is
+        // bounded by distinct inner kinds, not by construction count.
+        let a = AppSpecific::new(Stub::ok(SourceKind::MachineId, "x"), b"a".to_vec());
+        let b = AppSpecific::new(Stub::ok(SourceKind::MachineId, "y"), b"b".to_vec());
+        let (SourceKind::Custom(la), SourceKind::Custom(lb)) = (a.kind(), b.kind()) else {
+            panic!("AppSpecific must report SourceKind::Custom");
+        };
+        assert!(std::ptr::eq(la, lb), "label must be interned");
     }
 
     #[test]
