@@ -983,8 +983,7 @@ mod tests {
         // [`effective_uid_from_status`] for the parsing contract.
         std::fs::read_to_string("/proc/self/status")
             .ok()
-            .and_then(|s| effective_uid_from_status(&s).map(str::to_owned))
-            .is_some_and(|uid| uid == "0")
+            .is_some_and(|s| effective_uid_from_status(&s) == Some("0"))
     }
 
     /// Extract the effective UID from the `Uid:` line of

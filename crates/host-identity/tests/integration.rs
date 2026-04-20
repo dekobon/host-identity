@@ -221,28 +221,31 @@ fn network_defaults_uses_transport_for_cloud_sources() {
     );
 }
 
+/// Cloneable `HttpTransport` that panics if invoked. Shared by tests
+/// that exercise code paths meant to short-circuit before any network
+/// call — `network_defaults_env_override_wins_over_cloud`
+/// (runtime: env override outranks cloud sources) and
+/// `network_default_chain_bookends_k8s_sources_when_enabled`
+/// (static: chain construction must not hit the transport).
+#[cfg(feature = "aws")]
+#[derive(Clone)]
+struct NeverCalled;
+
+#[cfg(feature = "aws")]
+impl host_identity::transport::HttpTransport for NeverCalled {
+    type Error = std::convert::Infallible;
+    fn send(
+        &self,
+        _request: http::Request<Vec<u8>>,
+    ) -> Result<http::Response<Vec<u8>>, Self::Error> {
+        panic!("transport must not be called on this code path");
+    }
+}
+
 #[cfg(feature = "aws")]
 #[test]
 #[serial]
 fn network_defaults_env_override_wins_over_cloud() {
-    use host_identity::transport::HttpTransport;
-    use std::convert::Infallible;
-    use std::sync::{Arc, Mutex};
-
-    #[derive(Clone)]
-    struct NeverCalled;
-    impl HttpTransport for NeverCalled {
-        type Error = Infallible;
-        fn send(
-            &self,
-            _request: http::Request<Vec<u8>>,
-        ) -> Result<http::Response<Vec<u8>>, Self::Error> {
-            panic!("env override should short-circuit before any transport call");
-        }
-    }
-    // Silence the unused-import warnings when only one cloud feature is on.
-    let _ = (Arc::new(Mutex::new(0u8)),);
-
     let var = "HOST_IDENTITY";
     let _guard = EnvGuard::set(var, "env-wins-over-cloud");
 
@@ -466,22 +469,8 @@ fn network_default_chain_bookends_k8s_sources_when_enabled() {
     // A refactor that silently no-op'd either of them (by mis-gating
     // the cfg) would compile fine without this assertion.
     use host_identity::sources::network_default_chain;
-    use host_identity::transport::HttpTransport;
-    use std::convert::Infallible;
 
-    #[derive(Clone)]
-    struct Unused;
-    impl HttpTransport for Unused {
-        type Error = Infallible;
-        fn send(
-            &self,
-            _request: http::Request<Vec<u8>>,
-        ) -> Result<http::Response<Vec<u8>>, Self::Error> {
-            unreachable!("chain construction must not hit the transport");
-        }
-    }
-
-    let chain = network_default_chain(Unused);
+    let chain = network_default_chain(NeverCalled);
     let kinds = Resolver::new().with_boxed_sources(chain).source_kinds();
     assert_eq!(kinds.first(), Some(&SourceKind::EnvOverride));
     assert_eq!(

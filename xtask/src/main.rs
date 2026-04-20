@@ -63,9 +63,11 @@ fn render_subcommands(parent: &clap::Command, prefix: &str, out_dir: &Path) -> i
             continue;
         }
         let full_name = format!("{}-{}", prefix, sub.get_name());
-        let sub_cmd = sub.clone().name(full_name.clone());
-        render_man_page(&sub_cmd, out_dir)?;
+        // Recurse first so we can hand ownership of `full_name` to clap
+        // on the last line — avoids cloning it for the recursion.
         render_subcommands(sub, &full_name, out_dir)?;
+        let sub_cmd = sub.clone().name(full_name);
+        render_man_page(&sub_cmd, out_dir)?;
     }
     Ok(())
 }

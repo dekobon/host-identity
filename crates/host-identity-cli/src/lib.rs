@@ -532,11 +532,10 @@ fn render_audit_plain(buf: &mut Vec<u8>, outcomes: &[ResolveOutcome]) -> anyhow:
 /// `rsplit_once(':')` — UUIDs never contain a colon.
 fn render_audit_summary(buf: &mut Vec<u8>, outcomes: &[ResolveOutcome]) -> anyhow::Result<()> {
     for outcome in outcomes {
-        let source = outcome.source();
         match outcome {
             ResolveOutcome::Found(id) => writeln!(buf, "{}", id.summary())?,
-            ResolveOutcome::Skipped(_) => writeln!(buf, "{source}:skipped")?,
-            ResolveOutcome::Errored(_, err) => writeln!(buf, "{source}:ERROR {err}")?,
+            ResolveOutcome::Skipped(kind) => writeln!(buf, "{kind}:skipped")?,
+            ResolveOutcome::Errored(kind, err) => writeln!(buf, "{kind}:ERROR {err}")?,
         }
     }
     Ok(())
@@ -911,20 +910,7 @@ mod tests {
 
     #[test]
     fn audit_entry_schema_is_stable_for_every_status() {
-        use host_identity::sources::FnSource;
-        let found_src = FnSource::new(SourceKind::custom("ok"), || Ok(Some("raw".into())));
-        let err_src = FnSource::new(SourceKind::custom("bad"), || {
-            Err(host_identity::Error::Platform {
-                source_kind: SourceKind::custom("bad"),
-                reason: "synthetic".into(),
-            })
-        });
-        let skip_src = FnSource::new(SourceKind::custom("skip"), || Ok(None));
-        let outcomes = Resolver::new()
-            .push(found_src)
-            .push(err_src)
-            .push(skip_src)
-            .resolve_all();
+        let outcomes = mixed_outcomes();
         let report = AuditReport {
             wrap: WrapArg::V5,
             entries: outcomes.iter().map(AuditEntry::from).collect(),
@@ -1046,8 +1032,9 @@ mod tests {
                 sources: ids.iter().map(|s| (*s).to_owned()).collect(),
                 ..Default::default()
             };
-            let err =
-                validate_resolve_args(&args).expect_err(&format!("empty id {ids:?} must fail"));
+            let Err(err) = validate_resolve_args(&args) else {
+                panic!("empty id {ids:?} must fail");
+            };
             assert!(matches!(err, CliError::Usage(_)));
             let msg = err.into_inner().to_string();
             assert!(
@@ -1102,8 +1089,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn render_audit_plain_formats_mixed_outcomes() {
+    /// Shared fixture for the audit render tests: a three-source chain
+    /// that yields exactly one `Found`, one `Errored`, and one
+    /// `Skipped` outcome, in that order.
+    fn mixed_outcomes() -> Vec<ResolveOutcome> {
         use host_identity::sources::FnSource;
         let found_src = FnSource::new(SourceKind::custom("ok"), || Ok(Some("raw".into())));
         let err_src = FnSource::new(SourceKind::custom("bad"), || {
@@ -1113,11 +1102,16 @@ mod tests {
             })
         });
         let skip_src = FnSource::new(SourceKind::custom("skip"), || Ok(None));
-        let outcomes = Resolver::new()
+        Resolver::new()
             .push(found_src)
             .push(err_src)
             .push(skip_src)
-            .resolve_all();
+            .resolve_all()
+    }
+
+    #[test]
+    fn render_audit_plain_formats_mixed_outcomes() {
+        let outcomes = mixed_outcomes();
         let mut buf = Vec::new();
         render_audit_plain(&mut buf, &outcomes).expect("render");
         let text = String::from_utf8(buf).expect("utf-8");
@@ -1141,20 +1135,7 @@ mod tests {
 
     #[test]
     fn render_audit_summary_produces_one_compact_line_per_outcome() {
-        use host_identity::sources::FnSource;
-        let found_src = FnSource::new(SourceKind::custom("ok"), || Ok(Some("raw".into())));
-        let err_src = FnSource::new(SourceKind::custom("bad"), || {
-            Err(host_identity::Error::Platform {
-                source_kind: SourceKind::custom("bad"),
-                reason: "synthetic".into(),
-            })
-        });
-        let skip_src = FnSource::new(SourceKind::custom("skip"), || Ok(None));
-        let outcomes = Resolver::new()
-            .push(found_src)
-            .push(err_src)
-            .push(skip_src)
-            .resolve_all();
+        let outcomes = mixed_outcomes();
         let mut buf = Vec::new();
         render_audit_summary(&mut buf, &outcomes).expect("render");
         let text = String::from_utf8(buf).expect("utf-8");
@@ -1177,9 +1158,7 @@ mod tests {
 
     #[test]
     fn render_audit_summary_differs_from_plain() {
-        use host_identity::sources::FnSource;
-        let src = FnSource::new(SourceKind::custom("ok"), || Ok(Some("raw".into())));
-        let outcomes = Resolver::new().push(src).resolve_all();
+        let outcomes = mixed_outcomes();
         let mut plain = Vec::new();
         let mut summary = Vec::new();
         render_audit_plain(&mut plain, &outcomes).expect("plain");
