@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `host-identity-cli`: audit's plain and summary renderers now
+  flatten embedded `\n` / `\r` in error text to spaces, preserving the
+  "one line per outcome" contract that downstream scripts rely on. A
+  `Source` impl that emitted a multi-line `Error::Platform.reason`
+  previously produced multi-line output under `audit --format plain`
+  and `audit --format summary`, breaking line-oriented parsers. JSON
+  output was already safe via serde's string escaping. Drive-by: the
+  plain renderer now streams each outcome via `write!`/`writeln!`
+  instead of building an intermediate `String`, removing three
+  allocations per outcome on the common path.
 - `host-identity`: the `nix_is_root` test helper in `linux.rs` now
   reads the *effective* UID (second field of `/proc/self/status`
   `Uid:`) to match its comment and its callers' intent — a setuid-
@@ -17,12 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   shapes and malformed input. See
   [#23](https://github.com/dekobon/host-identity/issues/23).
 - `host-identity`: the default-feature build no longer emits
-  `dead_code` warnings for `push_k8s_pod_uid` /
-  `push_k8s_service_account`. Inlined the k8s pushes into
-  `network_default_chain` so they're only compiled when their only
-  caller is compiled. A new integration test pins the ordering
-  contract (pod UID first after env override, service-account last).
-  See [#22](https://github.com/dekobon/host-identity/issues/22).
+  `dead_code` warnings for the Kubernetes chain-building helpers. The
+  pod-UID and service-account pushes are inlined into
+  `network_default_chain` under a `#[cfg(feature = "k8s")]` guard, so
+  they're only compiled when their only caller (the
+  `_transport`-gated network chain) is compiled. A new integration
+  test pins the ordering contract (pod UID first after env override,
+  service-account last). See
+  [#22](https://github.com/dekobon/host-identity/issues/22).
 - `host-identity-cli`: empty tokens in `--sources` (from `""`, leading
   comma, trailing comma, or a doubled comma like `foo,,bar`) are now
   rejected up-front with `--sources contains an empty identifier`

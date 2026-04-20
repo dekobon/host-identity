@@ -11,6 +11,7 @@
 //! [`host-identity`]: https://crates.io/crates/host-identity
 
 use std::ffi::OsStr;
+use std::fmt;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -513,12 +514,12 @@ fn render_audit_json(
 fn render_audit_plain(buf: &mut Vec<u8>, outcomes: &[ResolveOutcome]) -> anyhow::Result<()> {
     for (i, outcome) in outcomes.iter().enumerate() {
         let kind = outcome.source();
-        let tail = match outcome {
-            ResolveOutcome::Found(id) => id.summary().to_string(),
-            ResolveOutcome::Skipped(_) => "(skipped)".to_owned(),
-            ResolveOutcome::Errored(_, err) => format!("ERROR {err}"),
-        };
-        writeln!(buf, "{i:>2}. {kind:<28} -> {tail}")?;
+        write!(buf, "{i:>2}. {kind:<28} -> ")?;
+        match outcome {
+            ResolveOutcome::Found(id) => writeln!(buf, "{}", id.summary())?,
+            ResolveOutcome::Skipped(_) => writeln!(buf, "(skipped)")?,
+            ResolveOutcome::Errored(_, err) => writeln!(buf, "ERROR {}", one_line(err))?,
+        }
     }
     Ok(())
 }
@@ -535,10 +536,22 @@ fn render_audit_summary(buf: &mut Vec<u8>, outcomes: &[ResolveOutcome]) -> anyho
         match outcome {
             ResolveOutcome::Found(id) => writeln!(buf, "{}", id.summary())?,
             ResolveOutcome::Skipped(kind) => writeln!(buf, "{kind}:skipped")?,
-            ResolveOutcome::Errored(kind, err) => writeln!(buf, "{kind}:ERROR {err}")?,
+            ResolveOutcome::Errored(kind, err) => {
+                writeln!(buf, "{kind}:ERROR {}", one_line(err))?;
+            }
         }
     }
     Ok(())
+}
+
+/// Collapse embedded newlines and carriage returns in a displayable
+/// value to single spaces. The audit plain and summary formats promise
+/// one line per outcome; a `Source` impl that produced a multi-line
+/// `Error::Platform { reason }` would otherwise silently break any
+/// script that parses `audit` stdout line-by-line. No-op for
+/// single-line errors — the returned `String` is byte-identical.
+fn one_line(err: &impl fmt::Display) -> String {
+    err.to_string().replace(['\n', '\r'], " ")
 }
 
 fn run_sources(json: bool) -> Result<(), CliError> {
@@ -1167,5 +1180,67 @@ mod tests {
             plain, summary,
             "audit plain and summary must not collapse to identical output",
         );
+    }
+
+    #[test]
+    fn render_audit_summary_wraps_app_specific_label_into_three_colons() {
+        // `AppSpecific` renders as `app-specific:<inner>`, so a Found
+        // outcome under `--app-id` yields `app-specific:<inner>:<uuid>`
+        // — three colons. The docstring tells callers to
+        // `rsplit_once(':')` to recover the uuid; this test pins that
+        // the output actually has that shape so the guidance stays
+        // accurate.
+        use host_identity::sources::{AppSpecific, FnSource};
+        let inner = FnSource::new(SourceKind::custom("machine-id"), || {
+            Ok(Some("11111111-2222-3333-4444-555555555555".into()))
+        });
+        let wrapped = AppSpecific::new(inner, b"com.example");
+        let outcomes = Resolver::new().push(wrapped).resolve_all();
+        let mut buf = Vec::new();
+        render_audit_summary(&mut buf, &outcomes).expect("render");
+        let line = String::from_utf8(buf)
+            .expect("utf-8")
+            .trim_end_matches('\n')
+            .to_owned();
+        assert!(
+            line.starts_with("app-specific:machine-id:"),
+            "expected three-colon shape, got: {line:?}",
+        );
+        let (label, uuid) = line
+            .rsplit_once(':')
+            .expect("rsplit_once must split a uuid tail off the label");
+        assert_eq!(label, "app-specific:machine-id");
+        assert_eq!(uuid.len(), 36, "uuid tail should be 36 chars: {uuid:?}");
+    }
+
+    #[test]
+    fn render_audit_summary_flattens_multi_line_errors_to_one_line() {
+        // Regression for test-gap #T2: a `Source` impl that returned an
+        // error with embedded newlines would otherwise break the
+        // "one line per outcome" contract. `one_line` replaces \n/\r
+        // with spaces so downstream line-based parsers stay correct.
+        use host_identity::sources::FnSource;
+        let src = FnSource::new(SourceKind::custom("bad"), || {
+            Err(host_identity::Error::Platform {
+                source_kind: SourceKind::custom("bad"),
+                reason: "first\nsecond\r\nthird".to_owned(),
+            })
+        });
+        let outcomes = Resolver::new().push(src).resolve_all();
+        let mut summary = Vec::new();
+        render_audit_summary(&mut summary, &outcomes).expect("summary");
+        let mut plain = Vec::new();
+        render_audit_plain(&mut plain, &outcomes).expect("plain");
+        let summary_text = String::from_utf8(summary).expect("utf-8");
+        let plain_text = String::from_utf8(plain).expect("utf-8");
+        // Exactly one trailing newline per outcome — no interior ones.
+        assert_eq!(
+            summary_text.matches('\n').count(),
+            1,
+            "summary: {summary_text:?}"
+        );
+        assert_eq!(plain_text.matches('\n').count(), 1, "plain: {plain_text:?}");
+        assert!(summary_text.contains("first second  third"));
+        assert!(plain_text.contains("first second  third"));
     }
 }
