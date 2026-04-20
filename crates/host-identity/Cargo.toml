@@ -5,10 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+authors.workspace = true
 description = "Stable, collision-resistant host identity resolution across platforms, container runtimes, cloud providers, and Kubernetes"
 readme = "README.md"
 keywords = ["host-id", "machine-id", "identity", "uuid", "container"]
 categories = ["os", "os::unix-apis", "os::windows-apis"]
+documentation = "https://docs.rs/host-identity"
 
 [lib]
 name = "host_identity"
