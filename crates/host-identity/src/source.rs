@@ -27,6 +27,13 @@ pub trait Source: fmt::Debug + Send + Sync {
     /// - `Err(_)` — a hard failure the caller should know about (permission
     ///   denied, malformed registry entry, sentinel value like
     ///   `uninitialized`)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] when the source encounters a hard failure such as
+    /// an I/O error other than "not found" / "permission denied", a
+    /// platform-tool failure, or a sentinel value that indicates an
+    /// uninitialized identifier.
     fn probe(&self) -> Result<Option<Probe>, Error>;
 }
 

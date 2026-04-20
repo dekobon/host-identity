@@ -334,6 +334,29 @@ fn read_dmi_file(path: &Path) -> Result<Option<Probe>, Error> {
     }
 }
 
+// Open `path` and classify the common benign failures (file absent,
+// permission denied) as `Ok(None)` so the resolver can fall through
+// to the next source. Every other I/O error is surfaced with full
+// path context so the operator can diagnose it.
+fn open_id_file(kind: SourceKind, path: &Path) -> Result<Option<std::fs::File>, Error> {
+    match std::fs::File::open(path) {
+        Ok(file) => Ok(Some(file)),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => {
+            log::debug!(
+                "host-identity: permission denied reading {}",
+                path.display()
+            );
+            Ok(None)
+        }
+        Err(source) => Err(Error::Io {
+            source_kind: kind,
+            path: PathBuf::from(path),
+            source,
+        }),
+    }
+}
+
 fn read_id_file(kind: SourceKind, path: &Path) -> Result<Option<Probe>, Error> {
     match read_capped(path) {
         Ok(content) => match classify(&content) {
@@ -441,23 +464,8 @@ impl Source for LinuxHostIdFile {
 }
 
 fn read_linux_hostid(path: &Path) -> Result<Option<Probe>, Error> {
-    let file = match std::fs::File::open(path) {
-        Ok(f) => f,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => {
-            log::debug!(
-                "host-identity: permission denied reading {}",
-                path.display()
-            );
-            return Ok(None);
-        }
-        Err(source) => {
-            return Err(Error::Io {
-                source_kind: SourceKind::LinuxHostId,
-                path: PathBuf::from(path),
-                source,
-            });
-        }
+    let Some(file) = open_id_file(SourceKind::LinuxHostId, path)? else {
+        return Ok(None);
     };
     // Read up to five bytes so a file whose size is 4 fills the buffer
     // exactly while a larger file (FreeBSD text UUID etc.) overshoots

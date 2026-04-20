@@ -197,50 +197,84 @@ macro_rules! feature_ctor {
 
 fn local_source_from_id(id: &str) -> Result<Box<dyn Source>, UnknownSourceError> {
     let kind = SourceKind::from_id(id).ok_or_else(|| UnknownSourceError::Unknown(id.to_owned()))?;
+    non_constructible_local(kind)
+        .or_else(|| feature_gated_local(kind))
+        .unwrap_or_else(|| Ok(plain_local(kind)))
+}
+
+// Variants whose construction either needs no work (`EnvOverride`),
+// needs a caller-supplied path (`FileOverride`, `KubernetesDownwardApi`),
+// or needs an HTTP transport (the cloud kinds).
+fn non_constructible_local(
+    kind: SourceKind,
+) -> Option<Result<Box<dyn Source>, UnknownSourceError>> {
     match kind {
-        SourceKind::EnvOverride => Ok(Box::new(sources::EnvOverride::new("HOST_IDENTITY"))),
-        SourceKind::FileOverride => Err(UnknownSourceError::RequiresPath("file-override")),
-        SourceKind::KubernetesDownwardApi => {
-            Err(UnknownSourceError::RequiresPath("kubernetes-downward-api"))
-        }
+        SourceKind::EnvOverride => Some(Ok(Box::new(sources::EnvOverride::new("HOST_IDENTITY")))),
+        SourceKind::FileOverride => Some(Err(UnknownSourceError::RequiresPath("file-override"))),
+        SourceKind::KubernetesDownwardApi => Some(Err(UnknownSourceError::RequiresPath(
+            "kubernetes-downward-api",
+        ))),
         SourceKind::AwsImds
         | SourceKind::GcpMetadata
         | SourceKind::AzureImds
         | SourceKind::DigitalOceanMetadata
         | SourceKind::HetznerMetadata
-        | SourceKind::OciMetadata => Err(UnknownSourceError::RequiresTransport(kind.as_str())),
+        | SourceKind::OciMetadata => {
+            Some(Err(UnknownSourceError::RequiresTransport(kind.as_str())))
+        }
+        _ => None,
+    }
+}
+
+// Variants whose constructor is gated behind a crate feature.
+fn feature_gated_local(kind: SourceKind) -> Option<Result<Box<dyn Source>, UnknownSourceError>> {
+    Some(match kind {
         SourceKind::Container => {
             feature_ctor!("container", "container", sources::ContainerId::default())
         }
-        SourceKind::Lxc => {
-            feature_ctor!("container", "lxc", sources::LxcId::default())
-        }
-        SourceKind::KubernetesPodUid => {
-            feature_ctor!(
-                "k8s",
-                "kubernetes-pod-uid",
-                sources::KubernetesPodUid::default()
-            )
-        }
+        SourceKind::Lxc => feature_ctor!("container", "lxc", sources::LxcId::default()),
+        SourceKind::KubernetesPodUid => feature_ctor!(
+            "k8s",
+            "kubernetes-pod-uid",
+            sources::KubernetesPodUid::default()
+        ),
         SourceKind::KubernetesServiceAccount => feature_ctor!(
             "k8s",
             "kubernetes-service-account",
             sources::KubernetesServiceAccount::default()
         ),
-        SourceKind::MachineId => Ok(Box::new(sources::MachineIdFile::default())),
-        SourceKind::DbusMachineId => Ok(Box::new(sources::DbusMachineIdFile::default())),
-        SourceKind::Dmi => Ok(Box::new(sources::DmiProductUuid::default())),
-        SourceKind::LinuxHostId => Ok(Box::new(sources::LinuxHostIdFile::default())),
-        SourceKind::IoPlatformUuid => Ok(Box::new(sources::IoPlatformUuid::default())),
-        SourceKind::WindowsMachineGuid => Ok(Box::new(sources::WindowsMachineGuid::default())),
-        SourceKind::FreeBsdHostId => Ok(Box::new(sources::FreeBsdHostIdFile::default())),
-        SourceKind::KenvSmbios => Ok(Box::new(sources::KenvSmbios::default())),
-        SourceKind::BsdKernHostId => Ok(Box::new(sources::SysctlKernHostId::default())),
-        SourceKind::IllumosHostId => Ok(Box::new(sources::IllumosHostId::default())),
-        // `SourceKind::from_id` never returns `Custom`, so reaching this
-        // arm means the variant set grew without a matching arm above.
-        SourceKind::Custom(_) => unreachable!("from_id never returns Custom"),
-    }
+        _ => return None,
+    })
+}
+
+// Always-available platform-typed sources. Dispatched by platform
+// family so no single helper matches every variant at once.
+fn plain_local(kind: SourceKind) -> Box<dyn Source> {
+    linux_family_source(kind)
+        .or_else(|| native_non_linux_source(kind))
+        .unwrap_or_else(|| unreachable!("plain_local reached with unhandled kind: {kind:?}"))
+}
+
+fn linux_family_source(kind: SourceKind) -> Option<Box<dyn Source>> {
+    Some(match kind {
+        SourceKind::MachineId => Box::new(sources::MachineIdFile::default()),
+        SourceKind::DbusMachineId => Box::new(sources::DbusMachineIdFile::default()),
+        SourceKind::Dmi => Box::new(sources::DmiProductUuid::default()),
+        SourceKind::LinuxHostId => Box::new(sources::LinuxHostIdFile::default()),
+        _ => return None,
+    })
+}
+
+fn native_non_linux_source(kind: SourceKind) -> Option<Box<dyn Source>> {
+    Some(match kind {
+        SourceKind::IoPlatformUuid => Box::new(sources::IoPlatformUuid::default()),
+        SourceKind::WindowsMachineGuid => Box::new(sources::WindowsMachineGuid::default()),
+        SourceKind::FreeBsdHostId => Box::new(sources::FreeBsdHostIdFile::default()),
+        SourceKind::KenvSmbios => Box::new(sources::KenvSmbios::default()),
+        SourceKind::BsdKernHostId => Box::new(sources::SysctlKernHostId::default()),
+        SourceKind::IllumosHostId => Box::new(sources::IllumosHostId::default()),
+        _ => return None,
+    })
 }
 
 #[cfg(feature = "_transport")]
@@ -316,6 +350,54 @@ mod tests {
             SourceKind::KubernetesDownwardApi,
         ] {
             assert_eq!(SourceKind::from_id(kind.as_str()), Some(kind));
+        }
+    }
+
+    // Guards against a future `SourceKind` variant being added without
+    // wiring it into the three-stage dispatch inside `local_source_from_id`.
+    // The exhaustive match that used to catch this at compile time was
+    // split into family-scoped helpers with `_ => return None` arms; this
+    // test closes that gap by ensuring every built-in identifier either
+    // constructs successfully or surfaces a documented `UnknownSourceError`
+    // — never a runtime `unreachable!` panic.
+    #[test]
+    fn local_source_from_id_handles_every_builtin_identifier() {
+        for id in [
+            source_ids::ENV_OVERRIDE,
+            source_ids::FILE_OVERRIDE,
+            source_ids::CONTAINER,
+            source_ids::LXC,
+            source_ids::MACHINE_ID,
+            source_ids::DBUS_MACHINE_ID,
+            source_ids::DMI,
+            source_ids::LINUX_HOSTID,
+            source_ids::IO_PLATFORM_UUID,
+            source_ids::WINDOWS_MACHINE_GUID,
+            source_ids::FREEBSD_HOSTID,
+            source_ids::KENV_SMBIOS,
+            source_ids::BSD_KERN_HOSTID,
+            source_ids::ILLUMOS_HOSTID,
+            source_ids::AWS_IMDS,
+            source_ids::GCP_METADATA,
+            source_ids::AZURE_IMDS,
+            source_ids::DIGITAL_OCEAN_METADATA,
+            source_ids::HETZNER_METADATA,
+            source_ids::OCI_METADATA,
+            source_ids::KUBERNETES_POD_UID,
+            source_ids::KUBERNETES_SERVICE_ACCOUNT,
+            source_ids::KUBERNETES_DOWNWARD_API,
+        ] {
+            match local_source_from_id(id) {
+                Ok(_)
+                | Err(
+                    UnknownSourceError::RequiresPath(_)
+                    | UnknownSourceError::RequiresTransport(_)
+                    | UnknownSourceError::FeatureDisabled(_, _),
+                ) => {}
+                Err(UnknownSourceError::Unknown(got)) => {
+                    panic!("identifier `{id}` was reported as unknown (got `{got}`)");
+                }
+            }
         }
     }
 

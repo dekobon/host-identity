@@ -144,14 +144,28 @@ pub use util::{UNINITIALIZED_SENTINEL, normalize};
 #[must_use]
 pub fn default_chain() -> Vec<Box<dyn Source>> {
     let mut chain: Vec<Box<dyn Source>> = Vec::new();
+    push_env_override(&mut chain);
+    push_container_sources(&mut chain);
+    push_native_sources(&mut chain);
+    chain
+}
+
+fn push_env_override(chain: &mut Vec<Box<dyn Source>>) {
     chain.push(Box::new(EnvOverride::new("HOST_IDENTITY")));
+}
 
-    #[cfg(all(target_os = "linux", feature = "container"))]
-    {
-        chain.push(Box::new(ContainerId::default()));
-        chain.push(Box::new(LxcId::default()));
-    }
+#[cfg(all(target_os = "linux", feature = "container"))]
+fn push_container_sources(chain: &mut Vec<Box<dyn Source>>) {
+    chain.push(Box::new(ContainerId::default()));
+    chain.push(Box::new(LxcId::default()));
+}
+#[cfg(not(all(target_os = "linux", feature = "container")))]
+fn push_container_sources(_chain: &mut Vec<Box<dyn Source>>) {}
 
+// Platform-native OS probes in their recommended chain order. Every
+// target OS gets its own `cfg` block; non-matching targets fall
+// through and the function becomes a no-op.
+fn push_native_sources(chain: &mut Vec<Box<dyn Source>>) {
     #[cfg(target_os = "linux")]
     {
         chain.push(Box::new(MachineIdFile::default()));
@@ -171,8 +185,46 @@ pub fn default_chain() -> Vec<Box<dyn Source>> {
     chain.push(Box::new(SysctlKernHostId::default()));
     #[cfg(any(target_os = "illumos", target_os = "solaris"))]
     chain.push(Box::new(IllumosHostId::default()));
+    let _ = chain;
+}
 
-    chain
+#[cfg(feature = "k8s")]
+fn push_k8s_pod_uid(chain: &mut Vec<Box<dyn Source>>) {
+    chain.push(Box::new(KubernetesPodUid::default()));
+}
+#[cfg(not(feature = "k8s"))]
+fn push_k8s_pod_uid(_chain: &mut Vec<Box<dyn Source>>) {}
+
+#[cfg(feature = "k8s")]
+fn push_k8s_service_account(chain: &mut Vec<Box<dyn Source>>) {
+    chain.push(Box::new(KubernetesServiceAccount::default()));
+}
+#[cfg(not(feature = "k8s"))]
+fn push_k8s_service_account(_chain: &mut Vec<Box<dyn Source>>) {}
+
+#[cfg(feature = "_transport")]
+fn push_cloud_sources<T>(chain: &mut Vec<Box<dyn Source>>, transport: T)
+where
+    T: crate::transport::HttpTransport + Clone + 'static,
+{
+    #[cfg(feature = "aws")]
+    chain.push(Box::new(AwsImds::new(transport.clone())));
+    #[cfg(feature = "gcp")]
+    chain.push(Box::new(GcpMetadata::new(transport.clone())));
+    #[cfg(feature = "azure")]
+    chain.push(Box::new(AzureImds::new(transport.clone())));
+    #[cfg(feature = "digitalocean")]
+    chain.push(Box::new(DigitalOceanMetadata::new(transport.clone())));
+    #[cfg(feature = "hetzner")]
+    chain.push(Box::new(HetznerMetadata::new(transport.clone())));
+    #[cfg(feature = "oci")]
+    chain.push(Box::new(OciMetadata::new(transport.clone())));
+    // `_transport` is only enabled by one of the cloud features, so
+    // in a real build at least one branch above has fired. Drop
+    // explicitly to keep the consumption of the moved parameter
+    // visible if the corner case ever materialises.
+    drop(transport);
+    let _ = chain;
 }
 
 /// Default chain for [`crate::Resolver::with_network_defaults`] — the
@@ -188,60 +240,12 @@ pub fn network_default_chain<T>(transport: T) -> Vec<Box<dyn Source>>
 where
     T: crate::transport::HttpTransport + Clone + 'static,
 {
-    let mut chain: Vec<Box<dyn Source>> = vec![Box::new(EnvOverride::new("HOST_IDENTITY"))];
-
-    #[cfg(feature = "k8s")]
-    chain.push(Box::new(KubernetesPodUid::default()));
-
-    #[cfg(all(target_os = "linux", feature = "container"))]
-    {
-        chain.push(Box::new(ContainerId::default()));
-        chain.push(Box::new(LxcId::default()));
-    }
-
-    #[cfg(feature = "aws")]
-    chain.push(Box::new(AwsImds::new(transport.clone())));
-    #[cfg(feature = "gcp")]
-    chain.push(Box::new(GcpMetadata::new(transport.clone())));
-    #[cfg(feature = "azure")]
-    chain.push(Box::new(AzureImds::new(transport.clone())));
-    #[cfg(feature = "digitalocean")]
-    chain.push(Box::new(DigitalOceanMetadata::new(transport.clone())));
-    #[cfg(feature = "hetzner")]
-    chain.push(Box::new(HetznerMetadata::new(transport.clone())));
-    #[cfg(feature = "oci")]
-    chain.push(Box::new(OciMetadata::new(transport.clone())));
-
-    // The `transport` value is consumed by each cloud-source branch above
-    // via `.clone()`. When no cloud feature is on (but `_transport` is,
-    // which is how this function is gated) the parameter would be unused
-    // — but `_transport` is only ever enabled *by* a cloud feature, so in
-    // every real build at least one branch fires. Drop explicitly to keep
-    // the intent obvious.
-    drop(transport);
-
-    #[cfg(target_os = "linux")]
-    {
-        chain.push(Box::new(MachineIdFile::default()));
-        chain.push(Box::new(DbusMachineIdFile::default()));
-        chain.push(Box::new(DmiProductUuid::default()));
-    }
-    #[cfg(target_os = "macos")]
-    chain.push(Box::new(IoPlatformUuid::default()));
-    #[cfg(target_os = "windows")]
-    chain.push(Box::new(WindowsMachineGuid::default()));
-    #[cfg(target_os = "freebsd")]
-    {
-        chain.push(Box::new(FreeBsdHostIdFile::default()));
-        chain.push(Box::new(KenvSmbios::default()));
-    }
-    #[cfg(any(target_os = "openbsd", target_os = "netbsd"))]
-    chain.push(Box::new(SysctlKernHostId::default()));
-    #[cfg(any(target_os = "illumos", target_os = "solaris"))]
-    chain.push(Box::new(IllumosHostId::default()));
-
-    #[cfg(feature = "k8s")]
-    chain.push(Box::new(KubernetesServiceAccount::default()));
-
+    let mut chain: Vec<Box<dyn Source>> = Vec::new();
+    push_env_override(&mut chain);
+    push_k8s_pod_uid(&mut chain);
+    push_container_sources(&mut chain);
+    push_cloud_sources(&mut chain, transport);
+    push_native_sources(&mut chain);
+    push_k8s_service_account(&mut chain);
     chain
 }

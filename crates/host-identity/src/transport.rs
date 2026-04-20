@@ -59,6 +59,12 @@ pub trait HttpTransport: Send + Sync {
     /// timeouts as `Err`. A non-2xx HTTP status is *not* an error — return
     /// the [`http::Response`] and let the caller inspect
     /// [`http::Response::status`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Self::Error`] for transport-level failures — DNS, TCP,
+    /// TLS, timeouts, or malformed responses. HTTP-level failures (4xx,
+    /// 5xx) are conveyed by the returned [`http::Response`]'s status.
     fn send(&self, request: http::Request<Vec<u8>>)
     -> Result<http::Response<Vec<u8>>, Self::Error>;
 }

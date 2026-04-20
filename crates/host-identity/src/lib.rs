@@ -190,6 +190,12 @@ pub use wrap::{DEFAULT_NAMESPACE, Wrap};
 /// [`resolve_with_transport`] when you want cloud-metadata endpoints in
 /// the chain, or [`Resolver`] when you need to reorder sources, add
 /// custom ones, or choose a different wrap strategy.
+///
+/// # Errors
+///
+/// Returns [`Error::NoSource`] if every source in the default chain
+/// returned `Ok(None)`, or propagates the first hard failure from a
+/// source (see [`Source::probe`]).
 pub fn resolve() -> Result<HostId, Error> {
     Resolver::with_defaults().resolve()
 }
@@ -205,6 +211,12 @@ pub fn resolve() -> Result<HostId, Error> {
 /// Available only when at least one cloud feature is enabled (`aws`,
 /// `gcp`, `azure`, `digitalocean`, `hetzner`, `oci`). See
 /// [`Resolver::with_network_defaults`] for the full chain order.
+///
+/// # Errors
+///
+/// As [`resolve`]: [`Error::NoSource`] if every source returned
+/// `Ok(None)`, or the first hard failure produced by a source in the
+/// chain.
 #[cfg(feature = "_transport")]
 pub fn resolve_with_transport<T>(transport: T) -> Result<HostId, Error>
 where

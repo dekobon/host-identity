@@ -90,6 +90,11 @@ fn into_http_response(resp: ureq::Response) -> Result<http::Response<Vec<u8>>, U
             builder = builder.header(&name, value);
         }
     }
+    let body = read_capped_body(resp)?;
+    builder.body(body).map_err(|e| UreqError(e.to_string()))
+}
+
+fn read_capped_body(resp: ureq::Response) -> Result<Vec<u8>, UreqError> {
     let mut body = Vec::new();
     // Read one byte past the cap so we can detect overflow instead of
     // silently truncating.
@@ -102,7 +107,7 @@ fn into_http_response(resp: ureq::Response) -> Result<http::Response<Vec<u8>>, U
             "response body exceeded {MAX_RESPONSE_BYTES} bytes"
         )));
     }
-    builder.body(body).map_err(|e| UreqError(e.to_string()))
+    Ok(body)
 }
 
 #[cfg(test)]
@@ -135,25 +140,10 @@ mod tests {
                 .expect("set_nonblocking on listener");
             let handle = thread::spawn(move || {
                 let deadline = Instant::now() + MOCK_SERVER_DEADLINE;
-                let mut stream = loop {
-                    match listener.accept() {
-                        Ok((s, _)) => break s,
-                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            if Instant::now() >= deadline {
-                                return;
-                            }
-                            thread::sleep(Duration::from_millis(10));
-                        }
-                        Err(_) => return,
-                    }
+                let Some(mut stream) = accept_with_deadline(&listener, deadline) else {
+                    return;
                 };
-                // On BSD-derived platforms (macOS) the accepted socket
-                // inherits O_NONBLOCK from the listener; on Linux it does
-                // not. Force blocking so set_{read,write}_timeout actually
-                // govern the exchange and ureq sees a normal stream.
-                let _ = stream.set_nonblocking(false);
-                let _ = stream.set_read_timeout(Some(MOCK_SERVER_DEADLINE));
-                let _ = stream.set_write_timeout(Some(MOCK_SERVER_DEADLINE));
+                configure_server_stream(&mut stream);
                 drain_request(&mut stream);
                 let _ = stream.write_all(&response);
             });
@@ -162,6 +152,31 @@ mod tests {
                 handle: Some(handle),
             }
         }
+    }
+
+    fn accept_with_deadline(listener: &TcpListener, deadline: Instant) -> Option<TcpStream> {
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => return Some(stream),
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    if Instant::now() >= deadline {
+                        return None;
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(_) => return None,
+            }
+        }
+    }
+
+    fn configure_server_stream(stream: &mut TcpStream) {
+        // On BSD-derived platforms (macOS) the accepted socket inherits
+        // O_NONBLOCK from the listener; on Linux it does not. Force
+        // blocking so set_{read,write}_timeout actually govern the
+        // exchange and ureq sees a normal stream.
+        let _ = stream.set_nonblocking(false);
+        let _ = stream.set_read_timeout(Some(MOCK_SERVER_DEADLINE));
+        let _ = stream.set_write_timeout(Some(MOCK_SERVER_DEADLINE));
     }
 
     impl Drop for MockServer {

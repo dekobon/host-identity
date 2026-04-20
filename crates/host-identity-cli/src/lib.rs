@@ -323,37 +323,57 @@ fn write_and_flush(bytes: &[u8]) -> io::Result<()> {
 }
 
 fn build_resolver(args: &ResolveArgs) -> Result<Resolver, CliError> {
+    validate_resolve_args(args)?;
+    let wrap = Wrap::from(args.wrap);
+    let base = base_resolver(args)?.with_wrap(wrap);
+    let with_override = prepend_file_override(base);
+    Ok(apply_app_specific(
+        with_override,
+        args.app_id.as_deref(),
+        wrap,
+    ))
+}
+
+fn validate_resolve_args(args: &ResolveArgs) -> Result<(), CliError> {
     if args.network_timeout_ms.is_some() && !args.network {
         return usage(anyhow!("`--network-timeout-ms` requires `--network`"));
     }
-    let resolver = match (args.sources.is_empty(), args.network) {
-        (true, false) => Resolver::with_defaults(),
-        (true, true) => network_defaults(args.network_timeout_ms).map_err(CliError::Usage)?,
+    if matches!(args.app_id.as_deref(), Some("")) {
+        return usage(anyhow!("`--app-id` must not be empty"));
+    }
+    Ok(())
+}
+
+fn base_resolver(args: &ResolveArgs) -> Result<Resolver, CliError> {
+    match (args.sources.is_empty(), args.network) {
+        (true, false) => Ok(Resolver::with_defaults()),
+        (true, true) => network_defaults(args.network_timeout_ms).map_err(CliError::Usage),
         (false, false) => {
-            resolver_from_ids(&args.sources).map_err(|e| CliError::Usage(map_unknown(e)))?
+            resolver_from_ids(&args.sources).map_err(|e| CliError::Usage(map_unknown(e)))
         }
         (false, true) => resolver_from_ids_network(&args.sources, args.network_timeout_ms)
-            .map_err(CliError::Usage)?,
-    };
+            .map_err(CliError::Usage),
+    }
+}
 
-    let mut resolver = resolver.with_wrap(Wrap::from(args.wrap));
-    if let Some(file_override) = host_identity_file_override() {
-        resolver = resolver.prepend(file_override);
+fn prepend_file_override(resolver: Resolver) -> Resolver {
+    match host_identity_file_override() {
+        Some(file) => resolver.prepend(file),
+        None => resolver,
     }
-    if let Some(app_id) = args.app_id.as_deref() {
-        if app_id.is_empty() {
-            return usage(anyhow!("`--app-id` must not be empty"));
-        }
-        let wrap = Wrap::from(args.wrap);
-        let id_bytes = app_id.as_bytes();
-        let wrapped: Vec<Box<dyn Source>> = resolver
-            .into_boxed_sources()
-            .into_iter()
-            .map(|s| Box::new(AppSpecific::new(s, id_bytes)) as Box<dyn Source>)
-            .collect();
-        resolver = Resolver::new().with_boxed_sources(wrapped).with_wrap(wrap);
-    }
-    Ok(resolver)
+}
+
+fn apply_app_specific(resolver: Resolver, app_id: Option<&str>, wrap: Wrap) -> Resolver {
+    let Some(app_id) = app_id else {
+        return resolver;
+    };
+    let id_bytes = app_id.as_bytes();
+    let wrapped: Vec<Box<dyn Source>> = resolver
+        .into_boxed_sources()
+        .into_iter()
+        .map(|s| Box::new(AppSpecific::new(s, id_bytes)) as Box<dyn Source>)
+        .collect();
+    Resolver::new().with_boxed_sources(wrapped).with_wrap(wrap)
 }
 
 /// Read `HOST_IDENTITY_FILE` from the process environment and, if set
@@ -442,27 +462,7 @@ fn run_audit(args: &ResolveArgs) -> Result<(), CliError> {
     let resolver = build_resolver(args)?;
     let outcomes = resolver.resolve_all();
     let mut buf = Vec::new();
-    match args.format {
-        Format::Json => {
-            let report = AuditReport {
-                wrap: args.wrap,
-                entries: outcomes.iter().map(AuditEntry::from).collect(),
-            };
-            serde_json::to_writer_pretty(&mut buf, &report).map_err(runtime_err)?;
-            buf.push(b'\n');
-        }
-        Format::Plain | Format::Summary => {
-            for (i, outcome) in outcomes.iter().enumerate() {
-                let kind = outcome.source();
-                let tail = match outcome {
-                    ResolveOutcome::Found(id) => id.summary().to_string(),
-                    ResolveOutcome::Skipped(_) => "(skipped)".to_owned(),
-                    ResolveOutcome::Errored(_, err) => format!("ERROR {err}"),
-                };
-                writeln!(buf, "{i:>2}. {kind:<28} -> {tail}").map_err(runtime_err)?;
-            }
-        }
-    }
+    render_audit(&mut buf, args, &outcomes).map_err(CliError::Runtime)?;
     write_and_flush(&buf).map_err(runtime_err)?;
 
     // Exit non-zero (runtime) when every outcome errored or skipped —
@@ -472,6 +472,44 @@ fn run_audit(args: &ResolveArgs) -> Result<(), CliError> {
         .any(|o| matches!(o, ResolveOutcome::Found(_)))
     {
         return runtime(anyhow!("no source produced a host identity"));
+    }
+    Ok(())
+}
+
+fn render_audit(
+    buf: &mut Vec<u8>,
+    args: &ResolveArgs,
+    outcomes: &[ResolveOutcome],
+) -> anyhow::Result<()> {
+    match args.format {
+        Format::Json => render_audit_json(buf, args.wrap, outcomes),
+        Format::Plain | Format::Summary => render_audit_plain(buf, outcomes),
+    }
+}
+
+fn render_audit_json(
+    buf: &mut Vec<u8>,
+    wrap: WrapArg,
+    outcomes: &[ResolveOutcome],
+) -> anyhow::Result<()> {
+    let report = AuditReport {
+        wrap,
+        entries: outcomes.iter().map(AuditEntry::from).collect(),
+    };
+    serde_json::to_writer_pretty(&mut *buf, &report)?;
+    buf.push(b'\n');
+    Ok(())
+}
+
+fn render_audit_plain(buf: &mut Vec<u8>, outcomes: &[ResolveOutcome]) -> anyhow::Result<()> {
+    for (i, outcome) in outcomes.iter().enumerate() {
+        let kind = outcome.source();
+        let tail = match outcome {
+            ResolveOutcome::Found(id) => id.summary().to_string(),
+            ResolveOutcome::Skipped(_) => "(skipped)".to_owned(),
+            ResolveOutcome::Errored(_, err) => format!("ERROR {err}"),
+        };
+        writeln!(buf, "{i:>2}. {kind:<28} -> {tail}")?;
     }
     Ok(())
 }
@@ -930,5 +968,95 @@ mod tests {
         let err = build_resolver(&args).expect_err("empty app-id must fail");
         assert!(matches!(err, CliError::Usage(_)));
         assert!(err.into_inner().to_string().contains("must not be empty"));
+    }
+
+    #[test]
+    fn validate_resolve_args_rejects_timeout_without_network() {
+        let args = ResolveArgs {
+            network_timeout_ms: Some(500),
+            network: false,
+            ..Default::default()
+        };
+        let err = validate_resolve_args(&args).expect_err("timeout without network must fail");
+        assert!(matches!(err, CliError::Usage(_)));
+        assert!(
+            err.into_inner()
+                .to_string()
+                .contains("`--network-timeout-ms` requires `--network`")
+        );
+    }
+
+    #[test]
+    fn validate_resolve_args_accepts_timeout_with_network() {
+        let args = ResolveArgs {
+            network_timeout_ms: Some(500),
+            network: true,
+            ..Default::default()
+        };
+        validate_resolve_args(&args).expect("timeout with network must validate");
+    }
+
+    #[test]
+    fn validate_resolve_args_accepts_default() {
+        validate_resolve_args(&ResolveArgs::default()).expect("default args must validate");
+    }
+
+    #[test]
+    fn validate_resolve_args_accepts_non_empty_app_id() {
+        let args = ResolveArgs {
+            app_id: Some("com.example.telemetry".into()),
+            ..Default::default()
+        };
+        validate_resolve_args(&args).expect("non-empty app-id must validate");
+    }
+
+    #[test]
+    fn apply_app_specific_none_is_identity() {
+        let resolver = Resolver::new()
+            .push(host_identity::sources::EnvOverride::new("A"))
+            .push(host_identity::sources::EnvOverride::new("B"))
+            .with_wrap(Wrap::Passthrough);
+        let before = resolver.source_kinds();
+        let after = apply_app_specific(resolver, None, Wrap::Passthrough).source_kinds();
+        assert_eq!(before, after);
+        for kind in after {
+            assert!(
+                !kind.as_str().starts_with("app-specific:"),
+                "None app-id must not wrap; got {kind:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn render_audit_plain_formats_mixed_outcomes() {
+        use host_identity::sources::FnSource;
+        let found_src = FnSource::new(SourceKind::custom("ok"), || Ok(Some("raw".into())));
+        let err_src = FnSource::new(SourceKind::custom("bad"), || {
+            Err(host_identity::Error::Platform {
+                source_kind: SourceKind::custom("bad"),
+                reason: "synthetic".into(),
+            })
+        });
+        let skip_src = FnSource::new(SourceKind::custom("skip"), || Ok(None));
+        let outcomes = Resolver::new()
+            .push(found_src)
+            .push(err_src)
+            .push(skip_src)
+            .resolve_all();
+        let mut buf = Vec::new();
+        render_audit_plain(&mut buf, &outcomes).expect("render");
+        let text = String::from_utf8(buf).expect("utf-8");
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 3);
+        // The `{kind:<28}` width spec is silently ignored today because
+        // SourceKind's Display impl uses `f.write_str` instead of `f.pad`
+        // (tracked as issue #17). Tighten these assertions to exact
+        // 28-column-padded strings once that fix lands.
+        assert!(lines[0].starts_with(" 0. ok "), "got: {:?}", lines[0]);
+        assert!(lines[0].contains(" -> "));
+        assert!(lines[1].starts_with(" 1. bad "), "got: {:?}", lines[1]);
+        assert!(lines[1].contains(" -> ERROR "));
+        assert!(lines[1].contains("synthetic"));
+        assert_eq!(lines[2], " 2. skip -> (skipped)");
     }
 }
