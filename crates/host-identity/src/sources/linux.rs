@@ -101,7 +101,7 @@ macro_rules! file_source {
                 $kind
             }
             fn probe(&self) -> Result<Option<Probe>, Error> {
-                read_id_file($kind, &self.path)
+                read_machine_id_file($kind, &self.path)
             }
         }
     };
@@ -111,7 +111,25 @@ file_source!(
     MachineIdFile,
     SourceKind::MachineId,
     "/etc/machine-id",
-    "`/etc/machine-id` — the systemd-managed primary host identifier on modern Linux."
+    "`/etc/machine-id` — the systemd-managed primary host identifier on modern Linux.\n\n\
+     # Known-duplicate filtering\n\n\
+     A non-trivial fraction of Linux installs ship or end up with machine-id\n\
+     values that are identical across many machines (Whonix's deliberate\n\
+     anti-fingerprinting constant; official container images that bake a\n\
+     single hex value into the filesystem layer; synthetic all-same-nibble\n\
+     values from broken image builds). Returning one of those would produce\n\
+     a silently non-unique identity shared by every host that inherits it,\n\
+     so this source additionally rejects, by returning `Ok(None)` with a\n\
+     `log::debug!` entry:\n\n\
+     - A curated list of public, citable shared values (`MACHINE_ID_DENYLIST`).\n\
+     - Any 32-hex-digit value whose nibbles are all the same character\n\
+       (`00…0`, `11…1`, `aa…a`, etc.). The systemd spec forbids all-zero\n\
+       machine-ids outright; the rest are only ever seen on synthetic or\n\
+       corrupt images.\n\n\
+     Anything not matching the filter passes through unchanged — the intent\n\
+     is to reject *known* garbage, not to gate on machine-id shape. A false\n\
+     positive here drops a legitimate host from identity resolution, so a\n\
+     missing entry is strictly preferable to an over-broad rule."
 );
 
 file_source!(
@@ -119,7 +137,8 @@ file_source!(
     SourceKind::DbusMachineId,
     "/var/lib/dbus/machine-id",
     "`/var/lib/dbus/machine-id` — D-Bus machine ID. Often a symlink to `/etc/machine-id` \
-     but present on its own on some minimal images."
+     but present on its own on some minimal images. Shares the same \
+     known-duplicate filter as [`MachineIdFile`]."
 );
 
 /// `/sys/class/dmi/id/product_uuid` — SMBIOS system UUID. Distinct per
@@ -184,6 +203,84 @@ impl Source for DmiProductUuid {
     }
     fn probe(&self) -> Result<Option<Probe>, Error> {
         read_dmi_file(&self.path)
+    }
+}
+
+/// Known-duplicate `/etc/machine-id` values, stored lowercase. Each entry is
+/// a public, citable shared value that every host reading the same image or
+/// install will produce identically — hashing it would silently collide
+/// `HostId`s across unrelated machines. Kept deliberately conservative: a
+/// missing entry means the value passes through, which is the less-bad
+/// failure mode versus a false positive dropping a legitimate host.
+///
+/// Container-image entries can rotate when upstream rebuilds the image;
+/// each entry carries the source image and observation date so a future
+/// maintainer can re-scan and prune obsolete values.
+const MACHINE_ID_DENYLIST: &[&str] = &[
+    // Whonix / Kicksecure deliberate anti-fingerprinting constant, shipped
+    // identically on every install.
+    // https://www.whonix.org/wiki/Protocol-Leak-Protection_and_Fingerprinting-Protection
+    "b08dfa6083e7567a1921a715000001fb",
+    // docker.io/library/oraclelinux:9 — observed 2026-04-19 via
+    // utils/scan_image_machine_ids.sh.
+    "d495c4b7bb8244639186ef65305fd685",
+    // docker.io/library/oraclelinux:8 — observed 2026-04-19.
+    "e28a15f597cd4693bb61f1f3e8447cbd",
+    // jrei/systemd-debian:latest — popular systemd-enabled base for
+    // Ansible/Molecule testing. Observed 2026-04-19.
+    "4c010dc413ad444698de6ee4677331b9",
+    // jrei/systemd-ubuntu:latest — observed 2026-04-19.
+    "a7570853ab864bbbbfc8c54b14eeaf8f",
+    // geerlingguy/docker-ubuntu2204-ansible:latest — observed 2026-04-19.
+    "5b4bb40898b2416087b6224f176978fb",
+    // geerlingguy/docker-debian12-ansible:latest — observed 2026-04-19.
+    "3948e4ca87b64871b31c9a49920b9834",
+    // geerlingguy/docker-rockylinux9-ansible:latest — observed 2026-04-19.
+    "835aa90928e143e3ae09efcd0c5cb118",
+];
+
+/// Return `true` if `value` is a known-duplicate machine-id that should be
+/// rejected rather than used as an identity.
+fn is_machine_id_garbage(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    if MACHINE_ID_DENYLIST.iter().any(|p| *p == lower) {
+        return true;
+    }
+    is_all_same_nibble_hex32(&lower)
+}
+
+/// Return `true` if `value` is exactly 32 hex digits and every digit is
+/// the same character. Covers the systemd-forbidden all-zero case and the
+/// synthetic `"11"*32`, `"aa"*32`, etc. values seen on broken images.
+fn is_all_same_nibble_hex32(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_hexdigit() {
+        return false;
+    }
+    let mut count = 1usize;
+    for c in chars {
+        if c != first {
+            return false;
+        }
+        count += 1;
+    }
+    count == 32
+}
+
+fn read_machine_id_file(kind: SourceKind, path: &Path) -> Result<Option<Probe>, Error> {
+    match read_id_file(kind, path)? {
+        Some(probe) if is_machine_id_garbage(probe.value()) => {
+            log::debug!(
+                "host-identity: {kind:?} value {} matches a known-duplicate machine-id; \
+                 falling through",
+                probe.value()
+            );
+            Ok(None)
+        }
+        other => Ok(other),
     }
 }
 
@@ -515,6 +612,144 @@ mod tests {
         let probe = read_id_file(SourceKind::MachineId, path)
             .expect("permission denied should be swallowed to Ok(None)");
         assert!(probe.is_none());
+    }
+
+    fn machine_id_probe(kind: SourceKind, body: &str) -> Option<Probe> {
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "{body}").unwrap();
+        read_machine_id_file(kind, f.path()).unwrap()
+    }
+
+    #[test]
+    fn machine_id_rejects_whonix_constant() {
+        // Removing this entry from MACHINE_ID_DENYLIST must fail this test.
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "b08dfa6083e7567a1921a715000001fb\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_whonix_constant_uppercase() {
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "B08DFA6083E7567A1921A715000001FB\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_oraclelinux_9_constant() {
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "d495c4b7bb8244639186ef65305fd685\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_oraclelinux_8_constant() {
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "e28a15f597cd4693bb61f1f3e8447cbd\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_jrei_systemd_debian_constant() {
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "4c010dc413ad444698de6ee4677331b9\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_jrei_systemd_ubuntu_constant() {
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "a7570853ab864bbbbfc8c54b14eeaf8f\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_geerlingguy_ansible_ubuntu_constant() {
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "5b4bb40898b2416087b6224f176978fb\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_geerlingguy_ansible_debian_constant() {
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "3948e4ca87b64871b31c9a49920b9834\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_geerlingguy_ansible_rocky_constant() {
+        assert!(
+            machine_id_probe(SourceKind::MachineId, "835aa90928e143e3ae09efcd0c5cb118\n").is_none()
+        );
+    }
+
+    #[test]
+    fn machine_id_rejects_all_zero_hex32() {
+        assert!(machine_id_probe(SourceKind::MachineId, &"0".repeat(32)).is_none());
+    }
+
+    #[test]
+    fn machine_id_rejects_all_same_nibble_hex32() {
+        assert!(machine_id_probe(SourceKind::MachineId, &"a".repeat(32)).is_none());
+        assert!(machine_id_probe(SourceKind::MachineId, &"F".repeat(32)).is_none());
+    }
+
+    #[test]
+    fn machine_id_accepts_plausible_real_value() {
+        let probe =
+            machine_id_probe(SourceKind::MachineId, "4c4c4544003957108052b4c04f384833\n").unwrap();
+        assert_eq!(probe.value(), "4c4c4544003957108052b4c04f384833");
+    }
+
+    #[test]
+    fn machine_id_filter_trims_whitespace_before_matching() {
+        // Confirms the filter composes with classify's trim.
+        assert!(
+            machine_id_probe(
+                SourceKind::MachineId,
+                "  b08dfa6083e7567a1921a715000001fb  \n\t"
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn dbus_machine_id_rejects_whonix_constant() {
+        // Confirms the filter is wired into DbusMachineIdFile too.
+        assert!(
+            machine_id_probe(
+                SourceKind::DbusMachineId,
+                "b08dfa6083e7567a1921a715000001fb\n"
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn hostid_accepts_all_zero_hex32() {
+        // Negative control: the machine-id filter must not leak into
+        // unrelated sources via read_id_file.
+        let mut f = NamedTempFile::new().unwrap();
+        write!(f, "{}", "0".repeat(32)).unwrap();
+        let probe = read_id_file(SourceKind::LinuxHostId, f.path())
+            .unwrap()
+            .unwrap();
+        assert_eq!(probe.value(), "0".repeat(32));
+    }
+
+    #[test]
+    fn is_all_same_nibble_hex32_rejects_short_values() {
+        // Gate at exactly 32 chars so short non-hex32 strings pass through.
+        assert!(!is_all_same_nibble_hex32("aaa"));
+        assert!(!is_all_same_nibble_hex32(""));
+        assert!(!is_all_same_nibble_hex32(&"a".repeat(31)));
+        assert!(!is_all_same_nibble_hex32(&"a".repeat(33)));
+    }
+
+    #[test]
+    fn is_all_same_nibble_hex32_rejects_non_hex() {
+        assert!(!is_all_same_nibble_hex32(&"z".repeat(32)));
     }
 
     fn dmi_tempfile(body: &str) -> NamedTempFile {

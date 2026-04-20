@@ -379,6 +379,17 @@ in their default path and `SourceKind`.
   produce a fleet-wide collision if hashed. The caller should know.
 - Empty / whitespace-only → `Ok(None)`.
 - Any other I/O error → `Err(Error::Io { path, source })`.
+- `MachineIdFile` and `DbusMachineIdFile` additionally reject
+  known-duplicate machine-id values (Whonix's anti-fingerprinting
+  constant, hex values baked into widely-pulled container images such
+  as the official `oraclelinux:8`/`oraclelinux:9` images, and any
+  all-same-nibble 32-hex value such as all-zero) → `Ok(None)` with a
+  `log::debug!` entry, so a host that inherits a shared image value
+  falls through to the next source rather than producing a fleet-wide
+  non-unique identity. The list is deliberately narrow: only cited,
+  publicly-documented shared values. A false positive here drops a
+  legitimate host, so a missing entry is strictly preferable to an
+  over-broad rule.
 - `DmiProductUuid` additionally rejects known-garbage SMBIOS values
   (all-zero, all-F, all-same-nibble, and a curated list of vendor
   placeholders such as `03000200-0400-0500-0006-000700080009`) →
