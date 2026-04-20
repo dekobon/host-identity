@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `IllumosHostId` now rejects the `00000000` unset sentinel by returning
+  `Ok(None)` so the resolver falls through, matching
+  `SysctlKernHostId`. See [#9](https://github.com/dekobon/host-identity/issues/9).
+
 ## [1.0.0-rc1] - 2026-04-19
 
 Rehearsal pre-release of 1.0.0. Exercises the full release pipeline

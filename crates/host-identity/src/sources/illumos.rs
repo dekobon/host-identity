@@ -7,6 +7,9 @@
 //! [`sysinfo(2)`](https://illumos.org/man/2/sysinfo)
 //! (`SI_HW_SERIAL` / `SI_HW_PROVIDER`).
 //!
+//! This source rejects `0` (including zero-padded and `0x`-prefixed forms)
+//! because illumos documents `SI_HW_SERIAL` as returning `"0"` when unset.
+//!
 //! # Identity scope
 //!
 //! `IllumosHostId` is **per-host-OS**: `hostid(1)` reads a kernel
@@ -68,6 +71,51 @@ impl Source for IllumosHostId {
         let Ok(value) = std::str::from_utf8(&output.stdout) else {
             return Ok(None);
         };
-        Ok(normalize(value).map(|v| Probe::new(SourceKind::IllumosHostId, v)))
+        Ok(normalize(value)
+            .filter(|v| !is_zero_hostid(v))
+            .map(|v| Probe::new(SourceKind::IllumosHostId, v)))
+    }
+}
+
+fn is_zero_hostid(v: &str) -> bool {
+    let (digits, radix) = v
+        .strip_prefix("0x")
+        .or_else(|| v.strip_prefix("0X"))
+        .map_or((v, 10), |d| (d, 16));
+    u64::from_str_radix(digits, radix).is_ok_and(|n| n == 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_zero_hostid;
+
+    #[test]
+    fn decimal_zero_is_zero() {
+        assert!(is_zero_hostid("0"));
+    }
+
+    #[test]
+    fn hex_zero_padded_is_zero() {
+        assert!(is_zero_hostid("00000000"));
+    }
+
+    #[test]
+    fn lowercase_hex_prefix_zero_is_zero() {
+        assert!(is_zero_hostid("0x0"));
+    }
+
+    #[test]
+    fn uppercase_hex_prefix_zero_is_zero() {
+        assert!(is_zero_hostid("0X00000000"));
+    }
+
+    #[test]
+    fn nonzero_hex_is_not_zero() {
+        assert!(!is_zero_hostid("4f988f8f"));
+    }
+
+    #[test]
+    fn non_numeric_value_is_not_zero() {
+        assert!(!is_zero_hostid("deadbeef-not-a-number"));
     }
 }
