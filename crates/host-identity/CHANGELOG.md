@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   round-tripping and default `Wrap::UuidV5Namespaced` semantics by
   emitting the same UUID shape as the other UUID-native sources. See
   [#11](https://github.com/dekobon/host-identity/issues/11).
+- `app_specific` runnable example under `crates/host-identity/examples/`
+  demonstrating `AppSpecific<MachineIdFile>` with stability across
+  repeated resolves and uncorrelatability across `app_id`s. See
+  [#15](https://github.com/dekobon/host-identity/issues/15).
 
 ### Changed
 
