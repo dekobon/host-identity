@@ -661,7 +661,16 @@ jobs:
               stage/usr/local/share/licenses/host-identity/LICENSE-MIT
             install -m 644 "dist/${STAGE}/THIRD-PARTY-LICENSES.md" \
               stage/usr/local/share/licenses/host-identity/THIRD-PARTY-LICENSES.md
-            pkg create -M +MANIFEST -r stage -o out
+            # pkg's `create -M <manifest> -r <stage>` does not auto-
+            # scan the stage tree — without an explicit plist the
+            # resulting package ends up metadata-only (zero files). A
+            # plist is just a list of package-relative file paths, one
+            # per line; generate it from what we just staged.
+            (cd stage && find . -type f | sed 's|^\./|/|' | sort) > pkg-plist
+            echo "::group::pkg-plist"
+            cat pkg-plist
+            echo "::endgroup::"
+            pkg create -M +MANIFEST -p pkg-plist -r stage -o out
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
