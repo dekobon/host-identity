@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `host-identity-cli`: empty tokens in `--sources` (from `""`, leading
+  comma, trailing comma, or a doubled comma like `foo,,bar`) are now
+  rejected up-front with `--sources contains an empty identifier`
+  instead of surfacing downstream as `unknown source identifier: ``
+  (empty backticks). Consistent with the pre-existing check that
+  rejects an empty `--app-id`. See
+  [#21](https://github.com/dekobon/host-identity/issues/21).
 - `host-identity-cli`: `audit --format summary` now emits a compact
   `source:<uuid|skipped|ERROR msg>` form mirroring
   `resolve --format summary`, instead of collapsing to byte-identical

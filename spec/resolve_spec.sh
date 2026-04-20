@@ -37,6 +37,18 @@ Describe 'host-identity resolve'
     The stderr should include 'unknown source identifier'
   End
 
+  It 'rejects an empty --sources element with a flag-named usage error'
+    # Regression for #21. A stray comma in --sources used to reach
+    # resolver_from_ids as an empty string and surface as
+    # `unknown source identifier: ``` (empty backticks). The validator
+    # now names the offending flag up front.
+    When call host_identity resolve --sources 'machine-id,,dmi'
+    The status should equal 2
+    The stdout should be blank
+    The stderr should include '--sources'
+    The stderr should include 'empty identifier'
+  End
+
   It 'rejects --network-timeout-ms without --network'
     When call host_identity resolve --network-timeout-ms 500
     The status should equal 2

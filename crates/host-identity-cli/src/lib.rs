@@ -341,6 +341,14 @@ fn validate_resolve_args(args: &ResolveArgs) -> Result<(), CliError> {
     if matches!(args.app_id.as_deref(), Some("")) {
         return usage(anyhow!("`--app-id` must not be empty"));
     }
+    // A stray comma in `--sources foo,,bar` (or a leading/trailing
+    // comma) lets clap's `value_delimiter` admit an empty token. Reject
+    // it here with a message that names the flag — otherwise the empty
+    // id reaches `resolver_from_ids` and surfaces as
+    // `unknown source identifier: ``` (empty backticks).
+    if args.sources.iter().any(String::is_empty) {
+        return usage(anyhow!("`--sources` contains an empty identifier"));
+    }
     Ok(())
 }
 
@@ -1019,6 +1027,53 @@ mod tests {
     #[test]
     fn validate_resolve_args_accepts_default() {
         validate_resolve_args(&ResolveArgs::default()).expect("default args must validate");
+    }
+
+    #[test]
+    fn validate_resolve_args_rejects_empty_source_identifier_in_every_position() {
+        // Regression for #21. A stray comma anywhere in `--sources`
+        // produces an empty token; previously this surfaced downstream
+        // as `unknown source identifier: ``` with empty backticks.
+        let cases: &[&[&str]] = &[
+            &[""],                      // `--sources ""`
+            &["", "machine-id"],        // `--sources ,machine-id`
+            &["machine-id", ""],        // `--sources machine-id,`
+            &["machine-id", "", "dmi"], // `--sources machine-id,,dmi`
+            &["", ""],                  // `--sources ,`
+        ];
+        for ids in cases {
+            let args = ResolveArgs {
+                sources: ids.iter().map(|s| (*s).to_owned()).collect(),
+                ..Default::default()
+            };
+            let err =
+                validate_resolve_args(&args).expect_err(&format!("empty id {ids:?} must fail"));
+            assert!(matches!(err, CliError::Usage(_)));
+            let msg = err.into_inner().to_string();
+            assert!(
+                msg.contains("`--sources`") && msg.contains("empty identifier"),
+                "error should name the flag and describe the problem for {ids:?}: {msg}",
+            );
+        }
+    }
+
+    #[test]
+    fn clap_parser_emits_empty_token_that_validation_catches() {
+        // Guard against a future refactor of the `#[arg(... value_delimiter = ',')]`
+        // attribute silently changing parse behaviour so empty tokens no
+        // longer reach `validate_resolve_args`. If that ever happens this
+        // test fails loudly instead of the validator becoming dead code.
+        let cli = Cli::try_parse_from(["host-identity", "resolve", "--sources", "machine-id,,dmi"])
+            .expect("clap must parse a doubled-comma source list");
+        let Some(Command::Resolve(resolve)) = cli.command else {
+            panic!("expected Resolve subcommand");
+        };
+        assert_eq!(
+            resolve.sources,
+            vec!["machine-id".to_owned(), String::new(), "dmi".to_owned()],
+        );
+        let err = validate_resolve_args(&resolve).expect_err("empty id must fail");
+        assert!(matches!(err, CliError::Usage(_)));
     }
 
     #[test]
