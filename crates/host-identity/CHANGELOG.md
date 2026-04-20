@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `IllumosHostId` now rejects the `00000000` unset sentinel (and any
+  other numeric-zero form — decimal `0`, `0x0`, `0X00000000`) by
+  returning `Ok(None)` so the resolver falls through, matching the
+  `SysctlKernHostId` (NetBSD/OpenBSD) contract. Previously every
+  illumos host with an unset `hostid(1)` collapsed to the same
+  fleet-wide UUID. See
+  [#9](https://github.com/dekobon/host-identity/issues/9).
+
 ## [1.0.0-rc1] - 2026-04-19
 
 Rehearsal pre-release of 1.0.0. Exercises the full release pipeline
