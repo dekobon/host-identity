@@ -1,4 +1,5 @@
 #shellcheck shell=sh
+#shellcheck disable=SC2016 # backticks inside `It '...'` descriptions are literal text.
 # Specs for `host-identity audit`: exit codes, status taxonomy, and the
 # BrokenPipe contract that `write_and_flush` in the CLI promises.
 
@@ -67,15 +68,18 @@ Describe 'host-identity audit'
     The stderr should not be blank
   End
 
-  It '--format summary is distinct from --format plain'
-    # Regression for #20. Both --format plain and --format summary emit
-    # a line containing `env-override` for a skipped env-override outcome,
-    # but only plain uses the `<idx>. <kind:<28>> -> (skipped)` column
-    # shape. Summary collapses to `env-override:skipped`.
+  It 'emits the compact `source:skipped` form under --format summary'
+    # Regression for #20 at the binary boundary. Summary collapses each
+    # skipped outcome to `<kind>:skipped`, distinct from plain's
+    # `<idx>. <kind:<28>> -> (skipped)` column shape. The unit test
+    # `render_audit_summary_differs_from_plain` in the CLI crate asserts
+    # plain != summary directly; here we pin the end-to-end output
+    # byte-exactly and confirm the usual "only-skip" exit code (1) fires.
     audit_summary_skip() {
       host_identity audit --sources env-override --format summary 2>/dev/null
     }
     When call audit_summary_skip
+    The status should equal 1
     The stdout should equal 'env-override:skipped'
   End
 
