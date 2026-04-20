@@ -5,8 +5,10 @@
 //!
 //! These sources live at two distinct scopes:
 //!
-//! - `MachineIdFile` and `DbusMachineIdFile` are **per-host-OS**:
-//!   written once when the OS is provisioned and tied to the install.
+//! - `MachineIdFile`, `DbusMachineIdFile`, and `LinuxHostIdFile` are
+//!   **per-host-OS**: written once when the OS is provisioned (or, for
+//!   `/etc/hostid`, by `sethostid(2)` / `zgenhostid` / the image build)
+//!   and tied to the install.
 //! - `DmiProductUuid` is **per-instance**: the SMBIOS system UUID is
 //!   assigned by the hypervisor (on VMs) or the OEM (on bare metal)
 //!   and identifies the hardware/VM, not the OS install.
@@ -43,6 +45,12 @@
 //!   exposes the SMBIOS system UUID (type 1 "UUID" field). Readable by root
 //!   only on most distributions; this crate swallows `PermissionDenied` to
 //!   let unprivileged callers fall through to other sources.
+//! - GNU coreutils [`hostid(1)`](https://www.gnu.org/software/coreutils/hostid),
+//!   Linux [`gethostid(3)`](https://man7.org/linux/man-pages/man3/gethostid.3.html),
+//!   and [`sethostid(2)`](https://man7.org/linux/man-pages/man2/sethostid.2.html)
+//!   — document `/etc/hostid` as four raw bytes in native byte order.
+//!   `LinuxHostIdFile` reads the file directly; see its rustdoc for why the
+//!   `gethostid(3)` fallback (fabricated from `gethostname()`) is not used.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -613,6 +621,18 @@ mod tests {
         let probe = read_linux_hostid(f.path()).unwrap().unwrap();
         assert_eq!(probe.kind(), SourceKind::LinuxHostId);
         assert_eq!(probe.value(), expected);
+    }
+
+    #[test]
+    fn linux_hostid_pads_small_values_to_eight_hex_digits() {
+        // Pin the `{:08x}` width specifier: a small value like 0x42
+        // must render as "00000042", matching `hostid(1)`'s `%08x`.
+        // Build the file bytes from the target-native u32 so the test
+        // is honest on both endiannesses.
+        let file_bytes = 0x0000_0042_u32.to_ne_bytes();
+        let f = write_hostid(&file_bytes);
+        let probe = read_linux_hostid(f.path()).unwrap().unwrap();
+        assert_eq!(probe.value(), "00000042");
     }
 
     #[test]
