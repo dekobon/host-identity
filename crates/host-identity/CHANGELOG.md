@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `LinuxHostIdFile` source reading glibc's 4-byte binary `/etc/hostid`
+  (identifier `linux-hostid`). Opt-in — **not** part of `default_chain`
+  or `network_default_chain`; operators who have the file (OpenZFS
+  hosts, minimal non-systemd images, Red Hat containers that
+  bind-mount `machine-id` but not `hostid`) push it explicitly. Reads
+  the file directly rather than calling `gethostid(3)`, whose
+  fallback path fabricates an unstable value from `gethostname()`.
+  Rejects `0x00000000` and `0xffffffff`, and any file size other than
+  four bytes. See
+  [#10](https://github.com/dekobon/host-identity/issues/10).
 - `AppSpecific<S>` source wrapper for systemd-style app-specific
   derivation of any inner source. HMACs the inner source's raw probe
   value with a caller-supplied `app_id` and emits a UUID-shaped probe,

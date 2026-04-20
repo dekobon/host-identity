@@ -504,6 +504,7 @@ fn available_source_ids() -> Vec<&'static str> {
         source_ids::MACHINE_ID,
         source_ids::DBUS_MACHINE_ID,
         source_ids::DMI,
+        source_ids::LINUX_HOSTID,
         source_ids::IO_PLATFORM_UUID,
         source_ids::WINDOWS_MACHINE_GUID,
         source_ids::FREEBSD_HOSTID,

@@ -408,6 +408,29 @@ in their default path and `SourceKind`.
   command → `Ok(None)`; sentinel / empty → `Ok(None)`; usable →
   `Ok(Some)`; unexpected I/O → `Err(Error::Io)` or `Err(Error::Platform)`.
 
+### `LinuxHostIdFile`
+
+Opt-in: not part of `default_chain` or `network_default_chain`. Push it
+explicitly only on hosts where `/etc/hostid` is known to be populated
+(OpenZFS hosts, minimal non-systemd images, Red Hat containers that
+bind-mount `machine-id` but not `hostid`).
+
+- `NotFound` → `Ok(None)`.
+- `PermissionDenied` → `Ok(None)` with a `log::debug!` entry.
+- File size ≠ 4 bytes → `Ok(None)` with a `log::debug!` entry
+  (defensive: sheared reads, FreeBSD-style text UUID mistakenly placed
+  on Linux).
+- Decoded `u32::from_ne_bytes(bytes)` value of `0x00000000` or
+  `0xffffffff` → `Ok(None)` with a `log::debug!` entry (unset or
+  known-garbage sentinels).
+- Any other I/O error → `Err(Error::Io { path, source })`.
+- Otherwise → `Ok(Some(<8-digit lowercase hex>))`, matching
+  `hostid(1)` output.
+
+This source reads the file directly rather than calling `gethostid(3)`;
+glibc's fallback fabricates a value from `gethostname()` → IPv4 lookup
+when the file is absent, and that value is neither stable nor unique.
+
 ### `KubernetesPodUid`
 
 - Read `/proc/self/mountinfo`.
@@ -548,6 +571,7 @@ authoritative document the implementation tracks; per-source rustdoc in
 | `IoPlatformUuid` (macOS)                    | [`ioreg(8)`](https://keith.github.io/xcode-man-pages/ioreg.8.html) · [Apple IOKit](https://developer.apple.com/documentation/iokit)                                |
 | `WindowsMachineGuid`                        | [CNG Registry Keys](https://learn.microsoft.com/en-us/windows/win32/seccng/cng-registry-keys) · [Windows Registry](https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry) |
 | `FreeBsdHostIdFile`                         | FreeBSD [`hostid(1)`](https://man.freebsd.org/cgi/man.cgi?query=hostid&sektion=1), [`gethostid(3)`](https://man.freebsd.org/cgi/man.cgi?query=gethostid&sektion=3) |
+| `LinuxHostIdFile`                           | GNU coreutils [`hostid(1)`](https://www.gnu.org/software/coreutils/hostid) · Linux [`gethostid(3)`](https://man7.org/linux/man-pages/man3/gethostid.3.html) · [`sethostid(2)`](https://man7.org/linux/man-pages/man2/sethostid.2.html) |
 | `KenvSmbios`                                | FreeBSD [`kenv(1)`](https://man.freebsd.org/cgi/man.cgi?query=kenv&sektion=1) · [DMTF SMBIOS DSP0134](https://www.dmtf.org/dsp/DSP0134)                             |
 | `SysctlKernHostId`                          | NetBSD [`sysctl(7)`](https://man.netbsd.org/sysctl.7) · OpenBSD [`sysctl(8)`](https://man.openbsd.org/sysctl.8), [`gethostid(3)`](https://man.openbsd.org/gethostid.3) |
 | `IllumosHostId`                             | illumos [`hostid(1)`](https://illumos.org/man/1/hostid) · [`sysinfo(2)`](https://illumos.org/man/2/sysinfo)                                                        |

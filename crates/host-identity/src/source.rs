@@ -97,6 +97,8 @@ pub enum SourceKind {
     DbusMachineId,
     /// `/sys/class/dmi/id/product_uuid` — SMBIOS system UUID (Linux).
     Dmi,
+    /// `/etc/hostid` — glibc 4-byte legacy host identifier (Linux).
+    LinuxHostId,
     /// `IOPlatformUUID` from `IOPlatformExpertDevice` (macOS).
     IoPlatformUuid,
     /// `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid` (Windows).
@@ -196,6 +198,7 @@ source_kind_ids! {
     MachineId                => "machine-id",                "/etc/machine-id (Linux)";
     DbusMachineId            => "dbus-machine-id",           "/var/lib/dbus/machine-id (Linux)";
     Dmi                      => "dmi",                       "/sys/class/dmi/id/product_uuid — SMBIOS system UUID (Linux)";
+    LinuxHostId              => "linux-hostid",              "/etc/hostid — 32-bit legacy host identifier (Linux)";
     IoPlatformUuid           => "io-platform-uuid",          "IOPlatformUUID from IOPlatformExpertDevice (macOS)";
     WindowsMachineGuid       => "windows-machine-guid",      "HKLM\\SOFTWARE\\Microsoft\\Cryptography\\MachineGuid (Windows)";
     FreeBsdHostId            => "freebsd-hostid",            "/etc/hostid (FreeBSD)";

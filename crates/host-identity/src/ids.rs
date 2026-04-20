@@ -60,6 +60,9 @@ pub mod source_ids {
     pub const DBUS_MACHINE_ID: &str = "dbus-machine-id";
     /// `"dmi"` — [`crate::sources::DmiProductUuid`].
     pub const DMI: &str = "dmi";
+    /// `"linux-hostid"` — [`crate::sources::LinuxHostIdFile`]. Opt-in;
+    /// not part of either default chain.
+    pub const LINUX_HOSTID: &str = "linux-hostid";
     /// `"io-platform-uuid"` — [`crate::sources::IoPlatformUuid`].
     pub const IO_PLATFORM_UUID: &str = "io-platform-uuid";
     /// `"windows-machine-guid"` — [`crate::sources::WindowsMachineGuid`].
@@ -227,6 +230,7 @@ fn local_source_from_id(id: &str) -> Result<Box<dyn Source>, UnknownSourceError>
         SourceKind::MachineId => Ok(Box::new(sources::MachineIdFile::default())),
         SourceKind::DbusMachineId => Ok(Box::new(sources::DbusMachineIdFile::default())),
         SourceKind::Dmi => Ok(Box::new(sources::DmiProductUuid::default())),
+        SourceKind::LinuxHostId => Ok(Box::new(sources::LinuxHostIdFile::default())),
         SourceKind::IoPlatformUuid => Ok(Box::new(sources::IoPlatformUuid::default())),
         SourceKind::WindowsMachineGuid => Ok(Box::new(sources::WindowsMachineGuid::default())),
         SourceKind::FreeBsdHostId => Ok(Box::new(sources::FreeBsdHostIdFile::default())),
@@ -294,6 +298,7 @@ mod tests {
             SourceKind::MachineId,
             SourceKind::DbusMachineId,
             SourceKind::Dmi,
+            SourceKind::LinuxHostId,
             SourceKind::IoPlatformUuid,
             SourceKind::WindowsMachineGuid,
             SourceKind::FreeBsdHostId,

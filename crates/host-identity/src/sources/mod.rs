@@ -36,13 +36,13 @@ mod linux;
 #[cfg(target_os = "linux")]
 pub(crate) use linux::in_container as linux_in_container;
 #[cfg(target_os = "linux")]
-pub use linux::{DbusMachineIdFile, DmiProductUuid, MachineIdFile};
+pub use linux::{DbusMachineIdFile, DmiProductUuid, LinuxHostIdFile, MachineIdFile};
 
 // Stubs so callers can name these types on non-Linux platforms.
 #[cfg(not(target_os = "linux"))]
 mod linux_stubs;
 #[cfg(not(target_os = "linux"))]
-pub use linux_stubs::{DbusMachineIdFile, DmiProductUuid, MachineIdFile};
+pub use linux_stubs::{DbusMachineIdFile, DmiProductUuid, LinuxHostIdFile, MachineIdFile};
 
 #[cfg(target_os = "macos")]
 mod macos;

@@ -1,4 +1,5 @@
-//! Linux identity sources: `/etc/machine-id`, D-Bus machine-id, SMBIOS/DMI.
+//! Linux identity sources: `/etc/machine-id`, D-Bus machine-id, SMBIOS/DMI,
+//! and the opt-in glibc `/etc/hostid` binary file.
 //!
 //! # Identity scope
 //!
@@ -43,6 +44,7 @@
 //!   only on most distributions; this crate swallows `PermissionDenied` to
 //!   let unprivileged callers fall through to other sources.
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::error::Error;
@@ -260,6 +262,138 @@ fn read_id_file(kind: SourceKind, path: &Path) -> Result<Option<Probe>, Error> {
     }
 }
 
+/// `/etc/hostid` — the glibc 4-byte binary hostid file read by
+/// [`gethostid(3)`](https://man7.org/linux/man-pages/man3/gethostid.3.html)
+/// and [`hostid(1)`](https://www.gnu.org/software/coreutils/hostid).
+///
+/// Opt-in only: **not** part of [`crate::sources::default_chain`] or
+/// [`crate::sources::network_default_chain`]. On stock Linux distros the
+/// file is absent (no `sethostid` has run), so defaulting it would cost
+/// every caller a syscall for a near-universal miss. Ship it as a
+/// constructible type so operators who know they have `/etc/hostid`
+/// (`OpenZFS` hosts, minimal non-systemd images, Red Hat containers that
+/// bind-mount `machine-id` but not `hostid`) can push it explicitly.
+///
+/// # File format
+///
+/// glibc stores the hostid as four raw bytes in native byte order
+/// ([`sethostid(2)`](https://man7.org/linux/man-pages/man2/sethostid.2.html)).
+/// Decoded with `u32::from_ne_bytes(...)` and formatted as 8-digit
+/// lowercase hex to match `hostid(1)` output.
+///
+/// # Why we don't call `gethostid(3)`
+///
+/// When `/etc/hostid` is absent glibc fabricates a value from
+/// `gethostname()` → IPv4 lookup. That value is neither stable nor
+/// unique and would flow through as identity — actively harmful. This
+/// source reads the file directly; absence yields `Ok(None)` so the
+/// resolver falls through.
+///
+/// # Probe behaviour
+///
+/// - File absent / `PermissionDenied` → `Ok(None)`.
+/// - File size ≠ 4 bytes → `Ok(None)` with a `log::debug!` entry
+///   (defensive: sheared reads, FreeBSD text-UUID `/etc/hostid`
+///   mistakenly placed on Linux).
+/// - Value `0x00000000` or `0xffffffff` → `Ok(None)` with a
+///   `log::debug!` entry (unset or known-garbage sentinels).
+/// - Other I/O error → `Err(Error::Io)`.
+/// - Otherwise → `Ok(Some(Probe::new(SourceKind::LinuxHostId, "<hex>")))`.
+#[derive(Debug, Clone)]
+pub struct LinuxHostIdFile {
+    path: PathBuf,
+}
+
+impl LinuxHostIdFile {
+    /// Read from the standard path (`/etc/hostid`).
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            path: PathBuf::from("/etc/hostid"),
+        }
+    }
+
+    /// Read from a caller-supplied path. Useful for tests and unusual
+    /// image layouts.
+    #[must_use]
+    pub fn at(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    /// The configured path.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Default for LinuxHostIdFile {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Source for LinuxHostIdFile {
+    fn kind(&self) -> SourceKind {
+        SourceKind::LinuxHostId
+    }
+    fn probe(&self) -> Result<Option<Probe>, Error> {
+        read_linux_hostid(&self.path)
+    }
+}
+
+fn read_linux_hostid(path: &Path) -> Result<Option<Probe>, Error> {
+    let file = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => {
+            log::debug!(
+                "host-identity: permission denied reading {}",
+                path.display()
+            );
+            return Ok(None);
+        }
+        Err(source) => {
+            return Err(Error::Io {
+                source_kind: SourceKind::LinuxHostId,
+                path: PathBuf::from(path),
+                source,
+            });
+        }
+    };
+    // Read up to five bytes so a file whose size is 4 fills the buffer
+    // exactly while a larger file (FreeBSD text UUID etc.) overshoots
+    // and is rejected.
+    let mut buf = Vec::with_capacity(5);
+    file.take(5)
+        .read_to_end(&mut buf)
+        .map_err(|source| Error::Io {
+            source_kind: SourceKind::LinuxHostId,
+            path: PathBuf::from(path),
+            source,
+        })?;
+    let Ok(bytes): Result<[u8; 4], _> = buf.as_slice().try_into() else {
+        log::debug!(
+            "host-identity: /etc/hostid at {} is {} bytes, expected 4; falling through",
+            path.display(),
+            buf.len(),
+        );
+        return Ok(None);
+    };
+    let value = u32::from_ne_bytes(bytes);
+    if value == 0 || value == u32::MAX {
+        log::debug!(
+            "host-identity: /etc/hostid at {} is {value:#010x} (unset/sentinel); falling through",
+            path.display()
+        );
+        return Ok(None);
+    }
+    Ok(Some(Probe::new(
+        SourceKind::LinuxHostId,
+        format!("{value:08x}"),
+    )))
+}
+
 /// Heuristic container-runtime detection.
 ///
 /// Mirrors the checks agent-go uses: `/.dockerenv` existence, runtime markers
@@ -460,6 +594,103 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(probe.value(), "00000000-0000-0000-0000-000000000000");
+    }
+
+    fn write_hostid(bytes: &[u8]) -> NamedTempFile {
+        let mut f = NamedTempFile::new().unwrap();
+        f.write_all(bytes).unwrap();
+        f
+    }
+
+    #[test]
+    fn linux_hostid_reads_native_endian_bytes() {
+        // `hostid(1)` prints `u32::from_ne_bytes(file_bytes)` formatted
+        // as 8-digit lowercase hex. Mirror that contract for both
+        // endiannesses so the test is honest on BE targets too.
+        let file_bytes = [0x8f, 0x8f, 0x98, 0x4f];
+        let expected = format!("{:08x}", u32::from_ne_bytes(file_bytes));
+        let f = write_hostid(&file_bytes);
+        let probe = read_linux_hostid(f.path()).unwrap().unwrap();
+        assert_eq!(probe.kind(), SourceKind::LinuxHostId);
+        assert_eq!(probe.value(), expected);
+    }
+
+    #[test]
+    fn linux_hostid_missing_is_none() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("absent");
+        assert!(read_linux_hostid(&missing).unwrap().is_none());
+    }
+
+    #[test]
+    fn linux_hostid_wrong_size_too_small_is_none() {
+        let f = write_hostid(&[0x01, 0x02, 0x03]);
+        assert!(read_linux_hostid(f.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn linux_hostid_wrong_size_too_large_is_none() {
+        // FreeBSD ships a text UUID at /etc/hostid — longer than 4
+        // bytes. Defensive short-circuit so a FreeBSD file mistakenly
+        // placed on Linux falls through.
+        let f = write_hostid(b"4f988f8f-0000-0000-0000-000000000000\n");
+        assert!(read_linux_hostid(f.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn linux_hostid_empty_is_none() {
+        let f = write_hostid(&[]);
+        assert!(read_linux_hostid(f.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn linux_hostid_rejects_all_zero() {
+        let f = write_hostid(&[0, 0, 0, 0]);
+        assert!(read_linux_hostid(f.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn linux_hostid_rejects_all_ff() {
+        let f = write_hostid(&[0xff, 0xff, 0xff, 0xff]);
+        assert!(read_linux_hostid(f.path()).unwrap().is_none());
+    }
+
+    #[test]
+    fn linux_hostid_reports_io_error_for_directory() {
+        let dir = TempDir::new().unwrap();
+        let err = read_linux_hostid(dir.path())
+            .expect_err("reading a directory must surface as Error::Io");
+        match err {
+            Error::Io {
+                path, source_kind, ..
+            } => {
+                assert_eq!(path, dir.path());
+                assert_eq!(source_kind, SourceKind::LinuxHostId);
+            }
+            other => panic!("expected Io, got {other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn linux_hostid_permission_denied_is_none() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::PathBuf;
+
+        struct PermGuard(PathBuf);
+        impl Drop for PermGuard {
+            fn drop(&mut self) {
+                let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o600));
+            }
+        }
+
+        if nix_is_root() {
+            return;
+        }
+        let f = write_hostid(&[0x01, 0x02, 0x03, 0x04]);
+        std::fs::set_permissions(f.path(), std::fs::Permissions::from_mode(0o000)).unwrap();
+        let _guard = PermGuard(f.path().to_path_buf());
+        assert!(read_linux_hostid(f.path()).unwrap().is_none());
     }
 
     #[cfg(unix)]

@@ -23,3 +23,9 @@ path_stub!(
     SourceKind::Dmi,
     "/sys/class/dmi/id/product_uuid"
 );
+path_stub!(
+    /// glibc `/etc/hostid` binary source (no-op on non-Linux targets).
+    LinuxHostIdFile,
+    SourceKind::LinuxHostId,
+    "/etc/hostid"
+);

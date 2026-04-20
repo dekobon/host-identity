@@ -363,7 +363,7 @@ each probe's provenance is distinguishable in telemetry.
 
 | Platform         | Default native sources                                 |
 | ---------------- | ------------------------------------------------------ |
-| Linux            | `MachineIdFile`, `DbusMachineIdFile`, `DmiProductUuid` |
+| Linux            | `MachineIdFile`, `DbusMachineIdFile`, `DmiProductUuid` (opt-in: `LinuxHostIdFile` for `/etc/hostid`) |
 | macOS            | `IoPlatformUuid` (via `ioreg`)                         |
 | Windows          | `WindowsMachineGuid` (registry)                        |
 | FreeBSD          | `FreeBsdHostIdFile`, `KenvSmbios`                      |
@@ -398,6 +398,7 @@ distinct hosts end up reporting the same value.
 | `IoPlatformUuid`     | `ioreg IOPlatformExpertDevice`                 | No                              | **Low on Apple hardware, medium in VMs** | Set at factory time on physical Macs. In VM products (Parallels, UTM, VMware Fusion) it may be derived from the VM config; duplicating the config file without randomizing it produces collisions. |
 | `WindowsMachineGuid` | `HKLM\…\Cryptography\MachineGuid`              | No                              | **High**                                 | Written by the installer and never regenerated. Every Windows image cloned without `sysprep /generalize` shares this GUID. A well-known class of bug in Windows fleet management. |
 | `FreeBsdHostIdFile`  | `/etc/hostid`                                  | No                              | **High**                                 | Written at first boot and persists. VM templates that aren't cleared before cloning produce collisions the same way `/etc/machine-id` does.                                       |
+| `LinuxHostIdFile`    | `/etc/hostid` (glibc 4-byte binary)            | No                              | **High**                                 | Written once (by `sethostid(2)`, `zgenhostid`, or the image build) and cloned with the disk. Opt-in only — not part of either default chain — because the file is absent on most stock Linux distros. |
 | `KenvSmbios`         | `kenv smbios.system.uuid`                      | No                              | **Low on bare metal, low–medium in VMs** | Same SMBIOS analysis as `DmiProductUuid`.                                                                                                                                       |
 | `SysctlKernHostId`   | `sysctl kern.hostid`                           | No                              | **High**                                 | Often `0` on fresh installs; once set, persists through the host's configuration and is cloned alongside it.                                                                     |
 | `IllumosHostId`      | `hostid(1)`                                    | No                              | **Medium–high**                          | Historically derived from licensed hardware. On modern illumos it is frequently seeded from `/etc/hostid` or zone config, both of which clone with the image.                    |
