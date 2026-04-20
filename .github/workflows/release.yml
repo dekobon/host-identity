@@ -1176,16 +1176,12 @@ jobs:
     needs: [preflight, sign-attest]
     if: ${{ needs.preflight.outputs.prerelease != 'true' }}
     runs-on: ubuntu-latest
-    # Binds the OIDC claim `environment: release` so the crates.io
-    # trusted publisher only accepts JWTs minted while this job runs
-    # in the `release` GitHub Environment. The environment must exist
-    # on the repo *before* this workflow runs; otherwise the job
-    # queues waiting for approval (or errors).
+    # Binds the OIDC `environment` claim so the crates.io trusted
+    # publisher only accepts JWTs minted while this job runs in the
+    # `release` environment. Must exist on the repo before merge.
     environment: release
     permissions:
       contents: read
-      # Mint the OIDC ID token that rust-lang/crates-io-auth-action
-      # exchanges for a short-lived crates.io registry token.
       id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -1198,18 +1194,20 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       # Trusted Publishing: exchange the runner's OIDC ID token for a
-      # short-lived crates.io registry token. The action's post-hook
-      # revokes the token automatically when the job ends.
+      # short-lived (30-minute) crates.io token authorizing every
+      # crate whose TP config matches `(owner, repo, workflow,
+      # environment)` in the JWT — so a single exchange covers both
+      # `host-identity` and `host-identity-cli`. The action's
+      # post-hook revokes the token when the job ends.
       - name: Authenticate to crates.io via Trusted Publishing
         id: auth
         uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
 
+      # Each publish step sets `CARGO_REGISTRY_TOKEN` in its own env
+      # because job-level `env:` cannot reference step outputs.
       - name: Publish host-identity
         env:
           VERSION: ${{ needs.preflight.outputs.version }}
-          # Job-level `env:` cannot reference step outputs (job env is
-          # resolved before any step runs), so each publish step maps
-          # the auth step's output into its own env.
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           set -eu

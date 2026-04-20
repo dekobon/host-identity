@@ -83,11 +83,10 @@ target tap/bucket repo is unreachable (deleted, renamed, or the PAT
 cannot see it) — those steps emit a GitHub Actions warning and skip
 without failing the release.
 
-If the crates.io trusted publisher is not registered (or its claims
-— owner, repo, workflow filename, environment — don't match the job),
+If the crates.io trusted publisher is not registered, or its claims
+— owner, repo, workflow filename, environment — don't match the job,
 the `publish-crates` auth step **fails fast** with an explicit
-claims-mismatch error. This is the one publish step we refuse to
-silently skip; there is no static secret to be absent.
+claims-mismatch error naming the expected and actual values.
 
 ### Minisign key
 
@@ -205,6 +204,10 @@ token. Two one-time setup steps are required on top of the
 
    Both crates must have their own trusted-publisher entry — a TP
    registered on `host-identity` does not cover `host-identity-cli`.
+   The workflow still performs a single `auth` exchange for both
+   publishes, because crates.io issues one token covering every
+   crate whose TP config matches the JWT claims (valid for 30
+   minutes, auto-revoked at job end).
 
 3. **First stable release after cutover validates the path.** The
    prerelease gate (`if: needs.preflight.outputs.prerelease != 'true'`)
