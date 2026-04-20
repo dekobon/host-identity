@@ -720,12 +720,16 @@ mod tests {
     }
 
     #[test]
-    fn hostid_accepts_all_zero_hex32() {
-        // Negative control: the machine-id filter must not leak into
-        // unrelated sources via read_id_file.
+    fn read_id_file_does_not_apply_machine_id_filter() {
+        // Architectural negative control: the machine-id deny-list and
+        // hex32 check live only in the read_machine_id_file wrapper,
+        // never in the shared read_id_file helper — so a future source
+        // wired through read_id_file doesn't silently inherit the
+        // filter. Feeding an all-zero hex32 (which read_machine_id_file
+        // would reject) through read_id_file must pass through.
         let mut f = NamedTempFile::new().unwrap();
         write!(f, "{}", "0".repeat(32)).unwrap();
-        let probe = read_id_file(SourceKind::LinuxHostId, f.path())
+        let probe = read_id_file(SourceKind::MachineId, f.path())
             .unwrap()
             .unwrap();
         assert_eq!(probe.value(), "0".repeat(32));
