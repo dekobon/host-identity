@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `host-identity`: the `nix_is_root` test helper in `linux.rs` now
+  reads the *effective* UID (second field of `/proc/self/status`
+  `Uid:`) to match its comment and its callers' intent — a setuid-
+  dropped or `sudo -E cargo test` runner with real != effective would
+  have incorrectly skipped permission-denied tests. Parser extracted
+  into `effective_uid_from_status` with unit coverage for typical
+  shapes and malformed input. See
+  [#23](https://github.com/dekobon/host-identity/issues/23).
 - `host-identity`: the default-feature build no longer emits
   `dead_code` warnings for `push_k8s_pod_uid` /
   `push_k8s_service_account`. Inlined the k8s pushes into

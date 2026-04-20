@@ -978,15 +978,61 @@ mod tests {
 
     #[cfg(unix)]
     fn nix_is_root() -> bool {
-        // Avoid pulling in a new dep — read `id -u` via libc would also work,
-        // but checking the effective UID via /proc/self/status is trivial.
+        // Avoid pulling in a new dep — `id -u` via libc would also work,
+        // but `/proc/self/status` is trivial. See
+        // [`effective_uid_from_status`] for the parsing contract.
         std::fs::read_to_string("/proc/self/status")
             .ok()
-            .and_then(|s| {
-                s.lines()
-                    .find_map(|l| l.strip_prefix("Uid:"))
-                    .and_then(|l| l.split_whitespace().next().map(str::to_owned))
-            })
+            .and_then(|s| effective_uid_from_status(&s).map(str::to_owned))
             .is_some_and(|uid| uid == "0")
+    }
+
+    /// Extract the effective UID from the `Uid:` line of
+    /// `/proc/self/status`. `proc(5)` documents the line as
+    /// `Uid:\t<real>\t<effective>\t<saved-set>\t<filesystem>`; we need
+    /// the *effective* UID because that is what determines whether the
+    /// `chmod 000` in `permission_denied_is_recoverable` actually bars
+    /// the test process from reading the file. Returns `None` when the
+    /// line is missing or malformed.
+    #[cfg(unix)]
+    fn effective_uid_from_status(status: &str) -> Option<&str> {
+        status
+            .lines()
+            .find_map(|l| l.strip_prefix("Uid:")?.split_whitespace().nth(1))
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn effective_uid_from_status_extracts_second_field() {
+        // Real != effective: the helper must track effective so callers
+        // like `nix_is_root` can correctly skip permission-denied tests
+        // on a setuid-dropped runner.
+        let status = "\
+Name:\tbash
+Uid:\t1000\t0\t1000\t1000
+Gid:\t1000\t1000\t1000\t1000
+";
+        assert_eq!(effective_uid_from_status(status), Some("0"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn effective_uid_from_status_handles_common_shapes() {
+        // Typical developer laptop: real == effective == saved == fs.
+        assert_eq!(
+            effective_uid_from_status("Uid:\t1000\t1000\t1000\t1000\n"),
+            Some("1000"),
+        );
+        // Root-run CI (all zeroes).
+        assert_eq!(effective_uid_from_status("Uid:\t0\t0\t0\t0\n"), Some("0"),);
+        // Missing `Uid:` line — caller must fall back to "not root".
+        assert_eq!(effective_uid_from_status("Name:\tthing\n"), None);
+        // Present but truncated (one field) — treat as malformed.
+        assert_eq!(effective_uid_from_status("Uid:\t1000\n"), None);
+        // Zero fields after `Uid:` — still malformed.
+        assert_eq!(effective_uid_from_status("Uid:\n"), None);
+        // Leading whitespace on the line — `strip_prefix` is strict on
+        // purpose, and real `/proc/self/status` never emits it.
+        assert_eq!(effective_uid_from_status(" Uid:\t0\t0\t0\t0\n"), None);
     }
 }
