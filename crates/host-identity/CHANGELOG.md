@@ -6,21 +6,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Changed
-
-- `MachineIdFile` and `DbusMachineIdFile` now reject known-duplicate
-  `/etc/machine-id` values via a conservative static deny-list plus an
-  all-same-nibble hex32 check. Seeded with the Whonix / Kicksecure
-  deliberate anti-fingerprinting constant and seven hex values observed
-  baked into widely-pulled container images (Oracle Linux 8/9 official
-  images, `jrei/systemd-*`, `geerlingguy/docker-*-ansible`). A matching
-  value now returns `Ok(None)` with a `log::debug!` entry so the
-  resolver falls through rather than producing a fleet-wide non-unique
-  identity. Scope is narrow: only cited, publicly-documented shared
-  values are on the list, and the filter does not apply to other
-  sources (`LinuxHostIdFile`, `DmiProductUuid`, etc.). See
-  [#12](https://github.com/dekobon/host-identity/issues/12).
-
 ### Added
 
 - `LinuxHostIdFile` source reading glibc's 4-byte binary `/etc/hostid`
@@ -44,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `MachineIdFile` and `DbusMachineIdFile` now reject known-duplicate
+  `/etc/machine-id` values via a conservative static deny-list plus an
+  all-same-nibble hex32 check. Seeded with the Whonix / Kicksecure
+  deliberate anti-fingerprinting constant and seven hex values observed
+  baked into widely-pulled container images (Oracle Linux 8/9 official
+  images, `jrei/systemd-*`, `geerlingguy/docker-*-ansible`). A matching
+  value now returns `Ok(None)` with a `log::debug!` entry so the
+  resolver falls through rather than producing a fleet-wide non-unique
+  identity. Scope is narrow: only cited, publicly-documented shared
+  values are on the list, and the filter does not apply to other
+  sources (`LinuxHostIdFile`, `DmiProductUuid`, etc.). See
+  [#12](https://github.com/dekobon/host-identity/issues/12).
 - `IllumosHostId` now rejects the `00000000` unset sentinel (and any
   other numeric-zero form — decimal `0`, `0x0`, `0X00000000`) by
   returning `Ok(None)` so the resolver falls through, matching the
