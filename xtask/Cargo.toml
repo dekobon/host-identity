@@ -7,7 +7,10 @@ license.workspace = true
 publish = false
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+# `string` enables `impl From<String> for clap::builder::Str` so we can
+# feed freshly-formatted subcommand names (e.g. `host-identity-resolve`)
+# to `Command::name` without a `Box::leak` to forge a `'static` string.
+clap = { version = "4", features = ["derive", "string"] }
 clap_mangen = "0.2"
 host-identity-cli = { version = "1.0", path = "../crates/host-identity-cli", default-features = false, features = ["container", "network"] }
 

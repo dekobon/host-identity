@@ -62,11 +62,10 @@ fn render_subcommands(parent: &clap::Command, prefix: &str, out_dir: &Path) -> i
         if sub.get_name() == "help" {
             continue;
         }
-        let full_name: &'static str =
-            Box::leak(format!("{}-{}", prefix, sub.get_name()).into_boxed_str());
-        let sub_cmd = sub.clone().name(full_name);
+        let full_name = format!("{}-{}", prefix, sub.get_name());
+        let sub_cmd = sub.clone().name(full_name.clone());
         render_man_page(&sub_cmd, out_dir)?;
-        render_subcommands(sub, full_name, out_dir)?;
+        render_subcommands(sub, &full_name, out_dir)?;
     }
     Ok(())
 }

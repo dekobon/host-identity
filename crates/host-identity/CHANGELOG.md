@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `xtask` no longer leaks a heap allocation per rendered subcommand via
+  `Box::leak`. Enabling the `string` feature on clap lets
+  `Command::name` accept an owned `String` directly. See
+  [#18](https://github.com/dekobon/host-identity/issues/18).
 - `SourceKind`'s `Display` impl now honours formatter fill/align/width
   and precision by calling `fmt::Formatter::pad` instead of
   `write_str`. Width specifiers such as `{kind:<28}` previously emitted
