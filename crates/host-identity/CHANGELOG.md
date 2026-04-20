@@ -107,6 +107,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- CI: the `publish-crates` release job now authenticates to crates.io
+  via Trusted Publishing (short-lived OIDC tokens) instead of a
+  long-lived `CARGO_REGISTRY_TOKEN` secret. Releases must run in the
+  new `release` GitHub Environment, and each crate must have a
+  GitHub Trusted Publisher registered on crates.io matching the
+  `release.yml` workflow and `release` environment. See
+  [#16](https://github.com/dekobon/host-identity/issues/16).
 - **Breaking (CLI JSON):** `host-identity resolve --format json` and
   `host-identity audit --format json` now emit an envelope recording
   the active `--wrap` strategy. `resolve` returns

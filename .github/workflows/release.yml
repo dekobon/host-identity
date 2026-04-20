@@ -1161,19 +1161,32 @@ jobs:
   #
   # Each step short-circuits if the version is already on crates.io,
   # keeping `workflow_dispatch` re-runs on the same tag idempotent (the
-  # tap and bucket steps have the same property). cargo's own
-  # "missing token" error is clear enough that we don't pre-check the
-  # secret's presence; a typo'd secret name surfaces immediately on the
-  # first `cargo publish` invocation.
+  # tap and bucket steps have the same property).
+  #
+  # Authentication is via crates.io Trusted Publishing (OIDC): the
+  # `auth` step exchanges the runner's GitHub-minted ID token for a
+  # short-lived registry token scoped to this run, which the
+  # subsequent publish steps pass to `cargo publish` via
+  # `CARGO_REGISTRY_TOKEN`. The token auto-revokes when the job ends.
+  # A missing or misconfigured trusted publisher on crates.io (wrong
+  # owner/repo/workflow/environment claims) fails the `auth` step
+  # fast and loud; there is no static secret to be absent.
   publish-crates:
     name: publish to crates.io
     needs: [preflight, sign-attest]
     if: ${{ needs.preflight.outputs.prerelease != 'true' }}
     runs-on: ubuntu-latest
+    # Binds the OIDC claim `environment: release` so the crates.io
+    # trusted publisher only accepts JWTs minted while this job runs
+    # in the `release` GitHub Environment. The environment must exist
+    # on the repo *before* this workflow runs; otherwise the job
+    # queues waiting for approval (or errors).
+    environment: release
     permissions:
       contents: read
-    env:
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      # Mint the OIDC ID token that rust-lang/crates-io-auth-action
+      # exchanges for a short-lived crates.io registry token.
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -1184,9 +1197,20 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
+      # Trusted Publishing: exchange the runner's OIDC ID token for a
+      # short-lived crates.io registry token. The action's post-hook
+      # revokes the token automatically when the job ends.
+      - name: Authenticate to crates.io via Trusted Publishing
+        id: auth
+        uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
+
       - name: Publish host-identity
         env:
           VERSION: ${{ needs.preflight.outputs.version }}
+          # Job-level `env:` cannot reference step outputs (job env is
+          # resolved before any step runs), so each publish step maps
+          # the auth step's output into its own env.
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           set -eu
           # Query the sparse index (CDN-backed, no UA policing) rather
@@ -1202,6 +1226,7 @@ jobs:
       - name: Publish host-identity-cli
         env:
           VERSION: ${{ needs.preflight.outputs.version }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           set -eu
           INDEX="https://index.crates.io/ho/st/host-identity-cli"

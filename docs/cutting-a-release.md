@@ -69,18 +69,25 @@ Configure these under **Settings → Secrets and variables → Actions**:
 | `ALPINE_ABUILD_KEY_PUB`  | Matching public key                                                |
 | `HOMEBREW_TAP_TOKEN`     | Fine-grained PAT with write access to `dekobon/homebrew-host-identity` |
 | `SCOOP_BUCKET_TOKEN`     | Fine-grained PAT with write access to `dekobon/scoop-bucket`       |
-| `CARGO_REGISTRY_TOKEN`   | crates.io API token scoped to `publish-new` + `publish-update` for `host-identity` and `host-identity-cli`. The workflow maps the secret to the env var of the same name, which `cargo publish` reads natively. |
+
+crates.io authentication no longer uses a repository secret. The
+`publish-crates` job authenticates via
+[Trusted Publishing](https://crates.io/docs/trusted-publishing): it
+mints a GitHub OIDC ID token and exchanges it for a short-lived
+registry token scoped to that run (see
+[crates.io Trusted Publisher setup](#cratesio-trusted-publisher-setup)
+below).
 
 If `HOMEBREW_TAP_TOKEN` or `SCOOP_BUCKET_TOKEN` is missing — or if the
 target tap/bucket repo is unreachable (deleted, renamed, or the PAT
 cannot see it) — those steps emit a GitHub Actions warning and skip
 without failing the release.
 
-If `CARGO_REGISTRY_TOKEN` is missing, the `publish-crates` job **fails**
-at the first `cargo publish` call with a "no upload token" error —
-crates.io publishes are the one step we refuse to silently skip.
-Configure it or remove the job for release lines you don't plan to
-ship to crates.io.
+If the crates.io trusted publisher is not registered (or its claims
+— owner, repo, workflow filename, environment — don't match the job),
+the `publish-crates` auth step **fails fast** with an explicit
+claims-mismatch error. This is the one publish step we refuse to
+silently skip; there is no static secret to be absent.
 
 ### Minisign key
 
@@ -138,15 +145,12 @@ Before the first automated publish:
    host-identity` (and for `host-identity-cli`). A single-owner
    crate is one forgotten password away from being orphaned. If you
    have a GitHub team, use `github:<org>:<team>`.
-4. **Mint a scoped API token for CI.** On
-   [crates.io/settings/tokens](https://crates.io/settings/tokens),
-   create a token with scopes `publish-new` and `publish-update`
-   restricted to the two crates. Avoid broad `*` tokens — the
-   release runner only needs to publish these two crates.
-5. **Paste the token into the `CARGO_REGISTRY_TOKEN` repo secret.**
-   cargo reads this env var natively, so the workflow doesn't need
-   an explicit `--token` flag. Never commit it or paste it into
-   workflow files.
+4. **Register a Trusted Publisher for each crate** (see
+   [crates.io Trusted Publisher setup](#cratesio-trusted-publisher-setup)
+   below). This replaces the long-lived API token the CI previously
+   used. Bootstrap publishes in step 2 still need a short-lived
+   `cargo login` token, but once the crate exists on crates.io, TP
+   takes over for every subsequent automated release.
 
 The `publish-crates` job publishes `host-identity` first, then
 `host-identity-cli`. The pinned 1.86.0 toolchain's `cargo publish`
@@ -162,7 +166,7 @@ publish.
 
 `publish-crates` runs in parallel with `publish` (tap/bucket).
 One failure mode to be aware of: if the external package-manager
-pushes succeed but the crates.io publish fails (token issue,
+pushes succeed but the crates.io publish fails (TP auth mismatch,
 registry outage), `brew install host-identity` will get the new version
 while `cargo install host-identity-cli` will not until the job is
 re-run. Re-running on the same tag is safe — both jobs are
@@ -170,6 +174,55 @@ idempotent — but noticing the gap is on you. The alternative would
 be serializing the jobs so crates.io must succeed before
 tap/bucket push; that turns a crates.io outage into a full
 release stall, which we've judged to be the worse failure mode.
+
+### crates.io Trusted Publisher setup
+
+Trusted Publishing lets the release workflow authenticate to
+crates.io via a short-lived OIDC token instead of a static API
+token. Two one-time setup steps are required on top of the
+[crates.io ownership](#cratesio-ownership) checklist above.
+
+1. **Create a `release` GitHub Environment.** Go to the repo's
+   **Settings → Environments → New environment** and name it
+   exactly `release`. The `publish-crates` job references this
+   environment and the crates.io trusted publisher matches the
+   `environment` OIDC claim against it. Optional protection rules
+   (required reviewers, deployment branch filters) act as a manual
+   gate on every publish — the environment is the right place to
+   add them, not the workflow. The name must match the TP
+   registration exactly; a typo here is the most common
+   self-inflicted failure mode.
+
+2. **Register a Trusted Publisher for each crate.** On crates.io,
+   open the settings page for `host-identity` and then for
+   `host-identity-cli`. In the **Trusted Publishing** section, add
+   a GitHub publisher with:
+
+   - Repository owner: `dekobon`
+   - Repository name: `host-identity`
+   - Workflow filename: `release.yml` (basename only, not a path)
+   - Environment: `release`
+
+   Both crates must have their own trusted-publisher entry — a TP
+   registered on `host-identity` does not cover `host-identity-cli`.
+
+3. **First stable release after cutover validates the path.** The
+   prerelease gate (`if: needs.preflight.outputs.prerelease != 'true'`)
+   skips `publish-crates` for `-rc` tags, so TP cannot be rehearsed
+   via `workflow_dispatch`. The first non-prerelease tag after the
+   cutover is the real end-to-end test. Watch the `auth` step logs
+   — on success, it reports the OIDC exchange; on claims mismatch,
+   it fails immediately with the missing/wrong claim named.
+
+4. **After the first successful TP-authenticated release, delete
+   the `CARGO_REGISTRY_TOKEN` repo secret.** Leaving it around is
+   not actively harmful (nothing references it), but deleting it
+   removes a tempting footgun for a future contributor who might
+   otherwise wire it back into the workflow.
+
+If `rust-lang/crates-io-auth-action` cuts a new release, re-resolve
+the commit SHA and update both the pin and the trailing `# vX.Y.Z`
+comment in `.github/workflows/release.yml`. Never float to a tag.
 
 ## Bumping the version
 
