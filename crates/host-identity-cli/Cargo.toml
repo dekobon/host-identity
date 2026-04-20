@@ -96,15 +96,21 @@ summary = "Stable host UUID across platforms, clouds, and Kubernetes"
 license = "Apache-2.0 OR MIT"
 vendor = "Elijah Zupancic"
 url = "https://github.com/dekobon/host-identity"
+# `doc = true` marks a file as `%doc` in the generated spec, which
+# Fedora's container images (and any system with `tsflags=nodocs` in
+# dnf.conf) filter out on install. Keep `%doc` only on the README —
+# man pages are the CLI's discoverability surface, and the LICENSE /
+# THIRD-PARTY-LICENSES files are compliance artefacts. None of those
+# are optional.
 assets = [
     { source = "../../target/release/host-identity", dest = "/usr/bin/host-identity", mode = "755" },
-    { source = "../../man/host-identity.1", dest = "/usr/share/man/man1/host-identity.1", mode = "644", doc = true },
-    { source = "../../man/host-identity-audit.1", dest = "/usr/share/man/man1/host-identity-audit.1", mode = "644", doc = true },
-    { source = "../../man/host-identity-resolve.1", dest = "/usr/share/man/man1/host-identity-resolve.1", mode = "644", doc = true },
-    { source = "../../man/host-identity-sources.1", dest = "/usr/share/man/man1/host-identity-sources.1", mode = "644", doc = true },
+    { source = "../../man/host-identity.1", dest = "/usr/share/man/man1/host-identity.1", mode = "644" },
+    { source = "../../man/host-identity-audit.1", dest = "/usr/share/man/man1/host-identity-audit.1", mode = "644" },
+    { source = "../../man/host-identity-resolve.1", dest = "/usr/share/man/man1/host-identity-resolve.1", mode = "644" },
+    { source = "../../man/host-identity-sources.1", dest = "/usr/share/man/man1/host-identity-sources.1", mode = "644" },
     { source = "../../README.md", dest = "/usr/share/doc/host-identity/README.md", mode = "644", doc = true },
-    { source = "../../LICENSE-APACHE", dest = "/usr/share/doc/host-identity/LICENSE-APACHE", mode = "644", doc = true },
-    { source = "../../LICENSE-MIT", dest = "/usr/share/doc/host-identity/LICENSE-MIT", mode = "644", doc = true },
-    { source = "../../THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/host-identity/THIRD-PARTY-LICENSES.md", mode = "644", doc = true },
+    { source = "../../LICENSE-APACHE", dest = "/usr/share/doc/host-identity/LICENSE-APACHE", mode = "644" },
+    { source = "../../LICENSE-MIT", dest = "/usr/share/doc/host-identity/LICENSE-MIT", mode = "644" },
+    { source = "../../THIRD-PARTY-LICENSES.md", dest = "/usr/share/doc/host-identity/THIRD-PARTY-LICENSES.md", mode = "644" },
 ]
 auto-req = "disabled"

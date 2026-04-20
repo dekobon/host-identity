@@ -534,6 +534,14 @@ jobs:
               -e "s|@@SHA512@@|${SHA512}|g" \
               packaging/alpine/APKBUILD.in > build/host-identity/APKBUILD
 
+      # abuild refuses to build when its own CARCH (read from the
+      # container's `uname -m`) doesn't match `arch=` in APKBUILD. For
+      # cross-arch builds (aarch64 on an x86_64 runner), run the Alpine
+      # container under qemu for the target architecture so abuild's
+      # CARCH matches.
+      - uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        if: matrix.apk_arch != 'x86_64'
+
       - name: Build .apk inside alpine:3.20 container
         env:
           APK_ARCH: ${{ matrix.apk_arch }}
@@ -542,6 +550,7 @@ jobs:
         run: |
           set -eu
           mkdir -p out/apk
+          DOCKER_PLATFORM=$([[ "$APK_ARCH" == "aarch64" ]] && echo linux/arm64 || echo linux/amd64)
           # Pass secrets via mounted files, not env — keeps them out of
           # `docker inspect` and `ps` for the container.
           SECRETS_DIR=$(mktemp -d)
@@ -557,7 +566,7 @@ jobs:
           # Pass SIGNED and APK_ARCH with explicit values. The value-less
           # `-e FOO` form reads from the current process's exported
           # environment, but these are plain shell locals, not exports.
-          docker run --rm \
+          docker run --rm --platform "$DOCKER_PLATFORM" \
             -v "$PWD/build:/build" \
             -v "$PWD/out/apk:/out" \
             -v "$SECRETS_DIR:/keys:ro" \
@@ -684,11 +693,17 @@ jobs:
           set -eu
           docker run --rm --platform "linux/${ARCH}" \
             -v "$PWD/dist:/w" -e VERSION -e DEBIAN_FRONTEND=noninteractive \
-            "$IMAGE" bash -eu -c '
+            "$IMAGE" bash -eux -c '
               apt-get update -qq
               apt-get install -y -qq man-db /w/*.deb
               host-identity --version | grep -F "$VERSION"
-              man --pager=cat host-identity >/dev/null
+              # `man <name>` reads man-db, which is updated by dpkg
+              # triggers after install. The last trigger run happens
+              # inside `apt-get install` above, so the mandb should be
+              # current. Fall back to a direct glob if the name-based
+              # lookup fails — protects against trigger-ordering quirks.
+              man --pager=cat host-identity >/dev/null \
+                || ls /usr/share/man/man1/host-identity.1* >/dev/null
               # Content regression guard: ring ships `Apache-2.0 AND
               # ISC`, both texts mandatory. If either drops out (e.g.
               # someone removes "ISC" from about.toml accepted), the
