@@ -1189,9 +1189,11 @@ jobs:
           VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           set -eu
-          # GET with body discarded — avoids HEAD-method quirks on the
-          # crates.io JSON API. `-f` maps non-2xx to exit 22.
-          if curl -sf -o /dev/null "https://crates.io/api/v1/crates/host-identity/${VERSION}"; then
+          # Query the sparse index (CDN-backed, no UA policing) rather
+          # than the HTML API, which has rate-limited and UA-gated our
+          # runner in the past. Each line is one published version.
+          INDEX="https://index.crates.io/ho/st/host-identity"
+          if curl -sfL "$INDEX" 2>/dev/null | grep -q "\"vers\":\"${VERSION}\""; then
             echo "host-identity ${VERSION} already on crates.io — skipping"
           else
             cargo publish -p host-identity --locked
@@ -1202,7 +1204,8 @@ jobs:
           VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           set -eu
-          if curl -sf -o /dev/null "https://crates.io/api/v1/crates/host-identity-cli/${VERSION}"; then
+          INDEX="https://index.crates.io/ho/st/host-identity-cli"
+          if curl -sfL "$INDEX" 2>/dev/null | grep -q "\"vers\":\"${VERSION}\""; then
             echo "host-identity-cli ${VERSION} already on crates.io — skipping"
           else
             cargo publish -p host-identity-cli --locked
