@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `host-identity-cli`: `audit --format summary` now emits a compact
+  `source:<uuid|skipped|ERROR msg>` form mirroring
+  `resolve --format summary`, instead of collapsing to byte-identical
+  `--format plain` output. Callers that parse the summary tail should
+  `rsplit_once(':')` because some source labels (e.g.
+  `app-specific:machine-id`) themselves contain a colon. See
+  [#20](https://github.com/dekobon/host-identity/issues/20).
 - `xtask` no longer leaks a heap allocation per rendered subcommand via
   `Box::leak`. Enabling the `string` feature on clap lets
   `Command::name` accept an owned `String` directly. See

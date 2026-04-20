@@ -483,7 +483,8 @@ fn render_audit(
 ) -> anyhow::Result<()> {
     match args.format {
         Format::Json => render_audit_json(buf, args.wrap, outcomes),
-        Format::Plain | Format::Summary => render_audit_plain(buf, outcomes),
+        Format::Plain => render_audit_plain(buf, outcomes),
+        Format::Summary => render_audit_summary(buf, outcomes),
     }
 }
 
@@ -510,6 +511,25 @@ fn render_audit_plain(buf: &mut Vec<u8>, outcomes: &[ResolveOutcome]) -> anyhow:
             ResolveOutcome::Errored(_, err) => format!("ERROR {err}"),
         };
         writeln!(buf, "{i:>2}. {kind:<28} -> {tail}")?;
+    }
+    Ok(())
+}
+
+/// One compact line per outcome, mirroring `resolve --format summary`'s
+/// `source:uuid` shape. `Skipped` and `Errored` outcomes emit
+/// `source:skipped` / `source:ERROR <msg>`. Note: some source labels
+/// themselves contain a colon (e.g. `AppSpecific` renders as
+/// `app-specific:<inner>`), and error text may contain arbitrary
+/// characters, so consumers that want to recover the uuid should
+/// `rsplit_once(':')` — UUIDs never contain a colon.
+fn render_audit_summary(buf: &mut Vec<u8>, outcomes: &[ResolveOutcome]) -> anyhow::Result<()> {
+    for outcome in outcomes {
+        let source = outcome.source();
+        match outcome {
+            ResolveOutcome::Found(id) => writeln!(buf, "{}", id.summary())?,
+            ResolveOutcome::Skipped(_) => writeln!(buf, "{source}:skipped")?,
+            ResolveOutcome::Errored(_, err) => writeln!(buf, "{source}:ERROR {err}")?,
+        }
     }
     Ok(())
 }
@@ -1062,5 +1082,56 @@ mod tests {
         assert!(lines[1].contains("synthetic"));
         assert!(lines[2].starts_with(" 2. skip"), "got: {:?}", lines[2]);
         assert!(lines[2].ends_with(" -> (skipped)"), "got: {:?}", lines[2]);
+    }
+
+    #[test]
+    fn render_audit_summary_produces_one_compact_line_per_outcome() {
+        use host_identity::sources::FnSource;
+        let found_src = FnSource::new(SourceKind::custom("ok"), || Ok(Some("raw".into())));
+        let err_src = FnSource::new(SourceKind::custom("bad"), || {
+            Err(host_identity::Error::Platform {
+                source_kind: SourceKind::custom("bad"),
+                reason: "synthetic".into(),
+            })
+        });
+        let skip_src = FnSource::new(SourceKind::custom("skip"), || Ok(None));
+        let outcomes = Resolver::new()
+            .push(found_src)
+            .push(err_src)
+            .push(skip_src)
+            .resolve_all();
+        let mut buf = Vec::new();
+        render_audit_summary(&mut buf, &outcomes).expect("render");
+        let text = String::from_utf8(buf).expect("utf-8");
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 3);
+        assert!(
+            lines[0].starts_with("ok:"),
+            "found line should lead with source:uuid, got: {:?}",
+            lines[0]
+        );
+        let uuid_tail = lines[0].strip_prefix("ok:").expect("ok: prefix");
+        assert_eq!(uuid_tail.len(), 36, "uuid tail: {uuid_tail:?}");
+        // `Error::Platform` renders as `{source_kind}: {reason}`, so the
+        // source label appears twice — once as the line's leading column
+        // and once inside the error text. Matches `render_audit_plain`'s
+        // `ERROR {err}` tail.
+        assert_eq!(lines[1], "bad:ERROR bad: synthetic");
+        assert_eq!(lines[2], "skip:skipped");
+    }
+
+    #[test]
+    fn render_audit_summary_differs_from_plain() {
+        use host_identity::sources::FnSource;
+        let src = FnSource::new(SourceKind::custom("ok"), || Ok(Some("raw".into())));
+        let outcomes = Resolver::new().push(src).resolve_all();
+        let mut plain = Vec::new();
+        let mut summary = Vec::new();
+        render_audit_plain(&mut plain, &outcomes).expect("plain");
+        render_audit_summary(&mut summary, &outcomes).expect("summary");
+        assert_ne!(
+            plain, summary,
+            "audit plain and summary must not collapse to identical output",
+        );
     }
 }

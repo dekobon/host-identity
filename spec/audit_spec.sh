@@ -66,4 +66,30 @@ Describe 'host-identity audit'
     The stdout should be blank
     The stderr should not be blank
   End
+
+  It '--format summary is distinct from --format plain'
+    # Regression for #20. Both --format plain and --format summary emit
+    # a line containing `env-override` for a skipped env-override outcome,
+    # but only plain uses the `<idx>. <kind:<28>> -> (skipped)` column
+    # shape. Summary collapses to `env-override:skipped`.
+    audit_summary_skip() {
+      host_identity audit --sources env-override --format summary 2>/dev/null
+    }
+    When call audit_summary_skip
+    The stdout should equal 'env-override:skipped'
+  End
+
+  It '--format summary Found line emits the resolve-style `source:uuid` shape'
+    # Complement to the skipped-case assertion above: verifies the
+    # Found branch end-to-end via the env-override source.
+    # --wrap passthrough keeps the uuid byte-exact so we can assert the
+    # tail instead of re-deriving the v5 output.
+    audit_summary_found() {
+      HOST_IDENTITY=11111111-2222-3333-4444-555555555555 \
+        host_identity audit --sources env-override --format summary --wrap passthrough
+    }
+    When call audit_summary_found
+    The status should equal 0
+    The stdout should equal 'env-override:11111111-2222-3333-4444-555555555555'
+  End
 End
