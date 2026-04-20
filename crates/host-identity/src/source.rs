@@ -225,6 +225,24 @@ source_kind_ids! {
 
 impl fmt::Display for SourceKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        // `pad` honors fill/align/width/precision; `write_str` would
+        // silently drop them.
+        f.pad(self.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SourceKind;
+
+    #[test]
+    fn display_honors_formatter_width_and_alignment() {
+        let k = SourceKind::MachineId;
+        assert_eq!(format!("[{k:<15}]"), "[machine-id     ]");
+        assert_eq!(format!("[{k:>15}]"), "[     machine-id]");
+        assert_eq!(format!("[{k:^15}]"), "[  machine-id   ]");
+        assert_eq!(format!("[{k:-<15}]"), "[machine-id-----]");
+        assert_eq!(format!("[{k:.5}]"), "[machi]");
+        assert_eq!(format!("[{k}]"), "[machine-id]");
     }
 }

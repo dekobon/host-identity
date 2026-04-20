@@ -1048,15 +1048,19 @@ mod tests {
         let text = String::from_utf8(buf).expect("utf-8");
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines.len(), 3);
-        // The `{kind:<28}` width spec is silently ignored today because
-        // SourceKind's Display impl uses `f.write_str` instead of `f.pad`
-        // (tracked as issue #17). Tighten these assertions to exact
-        // 28-column-padded strings once that fix lands.
+        let arrow = lines[0].find(" -> ").expect("first line has arrow");
+        for line in &lines {
+            assert_eq!(
+                line.find(" -> "),
+                Some(arrow),
+                "kind column should align across lines: {line:?}",
+            );
+        }
         assert!(lines[0].starts_with(" 0. ok "), "got: {:?}", lines[0]);
-        assert!(lines[0].contains(" -> "));
         assert!(lines[1].starts_with(" 1. bad "), "got: {:?}", lines[1]);
         assert!(lines[1].contains(" -> ERROR "));
         assert!(lines[1].contains("synthetic"));
-        assert_eq!(lines[2], " 2. skip -> (skipped)");
+        assert!(lines[2].starts_with(" 2. skip"), "got: {:?}", lines[2]);
+        assert!(lines[2].ends_with(" -> (skipped)"), "got: {:?}", lines[2]);
     }
 }

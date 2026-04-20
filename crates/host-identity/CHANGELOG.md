@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `SourceKind`'s `Display` impl now honours formatter fill/align/width
+  and precision by calling `fmt::Formatter::pad` instead of
+  `write_str`. Width specifiers such as `{kind:<28}` previously emitted
+  unpadded output, breaking column-aligned layouts in any caller —
+  notably `host-identity-cli`'s audit plain-text renderer. Existing
+  callers that pass no format spec continue to produce byte-identical
+  output. See
+  [#17](https://github.com/dekobon/host-identity/issues/17).
+
 ### Added
 
 - `LinuxHostIdFile` source reading glibc's 4-byte binary `/etc/hostid`
