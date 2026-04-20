@@ -58,6 +58,7 @@ the way they are.
 | Per-host-OS    | this OS install / boot identity?         | `MachineIdFile`, `DbusMachineIdFile`, `WindowsMachineGuid`, `FreeBsdHostIdFile`, `SysctlKernHostId`, `IllumosHostId` |
 | Per-namespace  | which Kubernetes namespace?              | `KubernetesServiceAccount`                                                           |
 | Caller-pinned  | whatever the operator says.              | `EnvOverride`, `FileOverride`, `FnSource`                                            |
+| Wrapper        | inherits the inner source's scope.       | `AppSpecific<S>` — per-app derivation of any other source; scope == `S`'s scope     |
 
 ### The trap: host-scope sources from inside a container
 

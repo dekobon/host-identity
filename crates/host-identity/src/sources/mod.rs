@@ -18,6 +18,9 @@ mod stub_macros;
 mod generic;
 pub use generic::{EnvOverride, FileOverride, FnSource};
 
+mod app_specific;
+pub use app_specific::AppSpecific;
+
 #[cfg(feature = "container")]
 mod container;
 #[cfg(feature = "container")]

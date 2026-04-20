@@ -102,6 +102,32 @@ See [`crates/host-identity/README.md`](crates/host-identity/README.md)
 for the problem statement in full and the API surface, and
 [`docs/algorithm.md`](docs/algorithm.md) for the resolution algorithm.
 
+### App-specific derivation (privacy)
+
+Exporting a raw host identifier to telemetry, crash reports, or
+third-party analytics is exactly the pattern systemd's
+[`machine-id(5)`](https://www.freedesktop.org/software/systemd/man/machine-id.html)
+spec warns against: every app that reads the raw value gets the same
+cross-correlatable ID for the host. `AppSpecific<S>` wraps any
+inner source and HMAC-derives a per-app UUID from its raw value:
+
+```rust
+use host_identity::sources::{AppSpecific, MachineIdFile};
+use host_identity::Resolver;
+
+let id = Resolver::new()
+    .push(AppSpecific::new(
+        MachineIdFile::default(),
+        b"com.example.telemetry".to_vec(),
+    ))
+    .resolve()?;
+# Ok::<(), host_identity::Error>(())
+```
+
+Two apps on the same host with different `app_id`s get uncorrelatable
+IDs; the raw machine-id never leaves the process. See
+[`docs/developer-guide.md` → "App-specific derivation"](docs/developer-guide.md#app-specific-derivation).
+
 ## Workspace layout
 
 | Crate                                                         | Purpose                                                            |

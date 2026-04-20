@@ -65,6 +65,16 @@ touch.
 | Cloud metadata, plain | New Cargo feature inheriting `_transport` | [B](#recipe-b--cloud-metadata-plaintext-cloudendpoint) |
 | Cloud metadata, bespoke | New Cargo feature inheriting `_transport` | [C](#recipe-c--cloud-metadata-bespoke-like-aws-imdsv2) |
 | Kubernetes-adjacent   | Extend the `k8s` feature                | [A](#recipe-a--local-file-or-command-source) |
+| Wrapper over `Source` | No feature (generic wrapper)            | see `AppSpecific` below                      |
+
+A **wrapper source** composes with another `Source` rather than
+probing a new identifier. `AppSpecific<S>` is the canonical example:
+it HMAC-derives the inner source's probe value and emits a UUID
+string so `Wrap::Passthrough` and `Wrap::UuidV5Namespaced` behave the
+same as for the other UUID-native sources. Rule of thumb for wrapper
+sources: **emit the same probe shape the existing UUID-native
+sources emit.** A novel shape (e.g. a 64-char hex hash) breaks
+`Wrap::Passthrough` and double-hashes under the default wrap.
 
 If your source is a plaintext `GET` against a link-local metadata
 endpoint and returns the identifier directly in the body, you want

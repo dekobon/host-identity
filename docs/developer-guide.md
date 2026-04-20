@@ -25,6 +25,7 @@ jump back to the relevant section when you need it.
 - [Bash scripts](#bash-scripts)
 - [Lessons learned](#lessons-learned)
 - [Adding an identity source](#adding-an-identity-source)
+- [App-specific derivation](#app-specific-derivation)
 
 ## Getting started
 
@@ -543,3 +544,62 @@ See [`adding-an-identity-source.md`](adding-an-identity-source.md) for
 the end-to-end checklist: categorising the source, the file-by-file
 changes, per-category recipes (local, plaintext cloud, bespoke cloud),
 required tests, documentation updates, and PR expectations.
+
+## App-specific derivation
+
+`AppSpecific<S>` is a wrapper source: it takes any inner `Source`,
+HMAC-SHA256s the inner probe value under a caller-supplied `app_id`,
+truncates to 16 bytes with the UUID v4 version and variant-10 bits
+forced, and emits the result as a hyphenated UUID string. This is the
+same construction systemd uses for
+`sd_id128_get_machine_app_specific()`, generalised to every source
+the crate abstracts.
+
+**Why you want it.** Handing a raw machine-id (or DMI UUID, or Windows
+MachineGuid, or cloud instance ID) to telemetry is exactly what
+[`machine-id(5)`](https://www.freedesktop.org/software/systemd/man/machine-id.html)
+warns against: every app that reads the raw key gets the same
+cross-correlatable ID for the host. `AppSpecific` gives each app a
+distinct, stable identifier per host and prevents the raw key from
+ever leaving the process.
+
+**Shape.** Output is a UUID string, matching the other UUID-native
+sources (`DmiProductUuid`, `IoPlatformUuid`, `WindowsMachineGuid`,
+`KenvSmbios`). Consequences:
+
+- `Wrap::Passthrough` round-trips the probe unchanged.
+- Default `Wrap::UuidV5Namespaced` re-hashes the UUID string for
+  crate-namespace separation the same way it does for the UUID-native
+  sources — not double-hashing an already-hashed 256-bit value.
+
+**Scope.** `AppSpecific<S>` inherits `S`'s identity scope. Wrapping a
+per-host source (`MachineIdFile`) yields a per-host-per-app ID;
+wrapping a per-instance source (`AwsImds`) yields a per-instance-per-app
+ID; wrapping a per-pod source (`KubernetesPodUid`) yields a
+per-pod-per-app ID. See
+[`docs/algorithm.md` → "Identity scope"](algorithm.md#identity-scope-what-host-means-per-source)
+for the scope rules.
+
+**systemd byte-compat caveat.** `systemd-id128 machine-id
+--app-specific=<X>` keys on the raw machine-id bytes and messages on a
+16-byte UUID. `AppSpecific::new` accepts arbitrary `&[u8]` for
+`app_id` — passing anything other than exactly 16 bytes derived from a
+UUID forfeits systemd byte-compat. Rust callers typically don't care;
+they pass whatever stable byte string identifies their application
+(reverse DNS, a random UUID, a git SHA).
+
+**Privacy caveats.**
+
+- The inner raw value is the HMAC key; treat it as sensitive. The
+  `hmac` crate holds its own internal copy of the key which this
+  crate cannot zeroize. The `app_id` buffer is zeroized on drop as a
+  best-effort.
+- Wrapping a source whose raw value is already public (cloud instance
+  IDs in consoles, Kubernetes pod UIDs readable via the API server)
+  adds no privacy — the input isn't secret in the first place.
+- The derived UUID is an identifier, **not** key material. Do not use
+  it as a cryptographic key.
+
+**Not in default chains.** Derivation requires an `app_id`, a caller
+concern. `default_chain` / `network_default_chain` are unchanged;
+callers opt in explicitly.

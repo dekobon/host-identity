@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `AppSpecific<S>` source wrapper for systemd-style app-specific
+  derivation of any inner source. HMACs the inner source's raw probe
+  value with a caller-supplied `app_id` and emits a UUID-shaped probe,
+  so two apps on the same host get uncorrelatable IDs and the raw
+  inner value never leaks. Preserves `Wrap::Passthrough`
+  round-tripping and default `Wrap::UuidV5Namespaced` semantics by
+  emitting the same UUID shape as the other UUID-native sources. See
+  [#11](https://github.com/dekobon/host-identity/issues/11).
+
 ### Changed
 
 - `IllumosHostId` now rejects the `00000000` unset sentinel (and any

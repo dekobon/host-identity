@@ -44,6 +44,9 @@ thiserror = "2"
 uuid = { version = "1", features = ["v3", "v5"] }
 log = "0.4"
 http = { version = "1", optional = true }
+hmac = "0.12"
+sha2 = "0.10"
+zeroize = { version = "1", features = ["derive"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-registry = "0.5"
