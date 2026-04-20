@@ -54,9 +54,27 @@ host-identity audit --format json
 | Flag                 | Values                          | Default | Notes                                                      |
 | -------------------- | ------------------------------- | ------- | ---------------------------------------------------------- |
 | `--format`           | `plain`, `summary`, `json`      | `plain` | `summary` prints `source:uuid`; `plain` prints only UUID.  |
-| `--wrap`             | `v5`, `v3`, `passthrough`       | `v5`    | UUID derivation strategy. `v3` matches legacy Go tooling.  |
+| `--wrap`             | `v5`, `v3`, `passthrough`       | `v5`    | How the raw ID becomes a UUID — see [Wrap strategies](#wrap-strategies). |
 | `--sources <ids>`    | comma-separated source IDs      | *(unset)* | Build a custom chain; see `host-identity sources`.              |
 | `--network`          | *(flag)*                        | off     | Adds cloud / k8s sources (requires `network` feature).     |
+
+### Wrap strategies
+
+`--wrap` controls how the raw identifier returned by the winning source
+is turned into a UUID. Every strategy is deterministic: the same raw
+input always produces the same UUID.
+
+| Value          | Behaviour                                                 | When to pick it                                                                                       |
+| -------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `v5`           | UUID v5 (SHA-1) under this crate's private namespace      | **Default.** Rehashes even pre-UUID sources (DMI, `IOPlatformUUID`, `MachineGuid`) so two tools sharing the same raw source cannot collide. |
+| `v3`           | UUID v3 (MD5) under the nil namespace                     | Wire-compat with legacy Go tooling that used `uuid.NewMD5(uuid.Nil, raw)`. Interop only — RFC 9562 recommends v5 over v3. |
+| `passthrough`  | Parse the raw value directly as a UUID, with no hashing   | You want the source's own UUID (e.g. `product_uuid`, pod UID) to survive unchanged so it matches another agent on the same host. Errors if the raw value isn't a parseable UUID. |
+
+Pick `v5` unless you have a concrete interop requirement. The library
+API (`Resolver::with_wrap`) also exposes `UuidV5With(ns)` for callers
+who need v5 hashing under a caller-supplied namespace — the CLI does
+not expose that variant because it takes a non-stringly-typed namespace
+UUID.
 
 ### Subcommands
 

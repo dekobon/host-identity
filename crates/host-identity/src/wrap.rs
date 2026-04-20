@@ -22,33 +22,71 @@ pub const DEFAULT_NAMESPACE: Uuid = Uuid::from_bytes([
 
 /// How the raw identifier produced by a [`crate::Source`] is turned into a
 /// [`uuid::Uuid`].
+///
+/// Pick one with [`crate::Resolver::with_wrap`]. The default
+/// ([`Wrap::UuidV5Namespaced`]) is the right choice for new code; the other
+/// variants exist for specific interop scenarios.
+///
+/// | Variant                 | When to use                                                                                                       |
+/// | ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
+/// | [`UuidV5Namespaced`]    | Default. Strongest collision resistance; rehashes under a private namespace so two tools sharing a raw source cannot collide. |
+/// | [`UuidV5With`]          | You want v5 hashing but need the wrapped UUID to live in a namespace already used by another system.              |
+/// | [`UuidV3Nil`]           | Wire-compatible with the legacy Go derivation `uuid.NewMD5(uuid.Nil, raw)`. Interop only; prefer v5 otherwise.    |
+/// | [`Passthrough`]         | The source already yields a UUID and you want *that exact UUID* to survive unchanged (e.g. match another agent). |
+///
+/// All deterministic: the same raw input always produces the same UUID.
+///
+/// [`UuidV5Namespaced`]: Wrap::UuidV5Namespaced
+/// [`UuidV5With`]: Wrap::UuidV5With
+/// [`UuidV3Nil`]: Wrap::UuidV3Nil
+/// [`Passthrough`]: Wrap::Passthrough
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum Wrap {
     /// UUID v5 (SHA-1) under the crate's [`DEFAULT_NAMESPACE`]. Default;
-    /// strongest collision resistance of the deterministic options.
+    /// strongest collision resistance of the deterministic options and the
+    /// right choice unless you have a concrete interop requirement.
     ///
-    /// This rehashes the raw value even when the source already yields a
-    /// UUID (DMI `product_uuid`, `IOPlatformUUID`, `MachineGuid`, SMBIOS).
-    /// That is intentional: it prevents two tools that share a raw source
-    /// (e.g. two agents both reading `/etc/machine-id`) from emitting
-    /// colliding IDs. Use [`Wrap::Passthrough`] when you explicitly want
-    /// the source's own UUID to survive unchanged.
+    /// Rehashes the raw value even when the source already yields a UUID
+    /// (DMI `product_uuid`, macOS `IOPlatformUUID`, Windows `MachineGuid`,
+    /// SMBIOS). That is intentional: it prevents two tools that share a
+    /// raw source (e.g. two agents both reading `/etc/machine-id`) from
+    /// emitting colliding IDs. Use [`Wrap::Passthrough`] when you
+    /// explicitly want the source's own UUID to survive unchanged, or
+    /// [`Wrap::UuidV5With`] when you need a different namespace.
     #[default]
     UuidV5Namespaced,
 
-    /// UUID v5 under a caller-supplied namespace. Use when you want the
-    /// wrapped UUID to match an existing system's namespace scheme.
+    /// UUID v5 (SHA-1) under a caller-supplied namespace. Same algorithm
+    /// as [`Wrap::UuidV5Namespaced`] with a different namespace constant.
+    ///
+    /// Use when another system in your stack already hashes identifiers
+    /// under a well-known namespace (e.g. a product-wide DNS namespace)
+    /// and you want this crate's output to sit in that same space so IDs
+    /// cross-correlate. If you don't have such a namespace, stick with
+    /// the default.
     UuidV5With(Uuid),
 
-    /// UUID v3 (MD5) under the nil namespace — compatible with legacy Go
-    /// host-id derivation (`uuid.NewMD5(uuid.Nil, hostID)`). Use only for
-    /// interop with existing pipelines that already produced IDs this way.
+    /// UUID v3 (MD5) under the nil namespace — wire-compatible with the
+    /// legacy Go derivation `uuid.NewMD5(uuid.Nil, raw)`.
+    ///
+    /// Use only for interop with existing pipelines that already produced
+    /// IDs this way; MD5 has no security relevance here, but RFC 9562
+    /// recommends v5 over v3 for new work and so does this crate.
     UuidV3Nil,
 
-    /// Parse the raw value directly as a UUID. Use when the source
-    /// already yields a UUID string (DMI `product_uuid`,
-    /// `IOPlatformUUID`, `MachineGuid`, `kenv smbios.system.uuid`).
+    /// Parse the raw value directly as a UUID, with no hashing.
+    ///
+    /// Use when the source already yields a UUID string (DMI
+    /// `product_uuid`, macOS `IOPlatformUUID`, Windows `MachineGuid`,
+    /// `kenv smbios.system.uuid`, container IDs, Kubernetes pod UIDs)
+    /// and you want *that exact UUID* to survive unchanged — for example,
+    /// to match the ID another agent on the same host already reports.
+    ///
+    /// Returns `None` (surfaced as [`crate::Error::Malformed`] from the
+    /// resolver) when the raw value is not a parseable UUID, so this
+    /// strategy is unsafe to pair with sources that emit arbitrary
+    /// strings (e.g. `HOST_IDENTITY=my-server`).
     ///
     /// Accepts every form [`uuid::Uuid::parse_str`] accepts — hyphenated
     /// (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`), simple (no hyphens),

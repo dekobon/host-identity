@@ -443,14 +443,22 @@ supports.
 
 ## Wrap strategies
 
-How a raw identifier becomes a UUID, selected with `Resolver::with_wrap`:
+How a raw identifier becomes a UUID, selected with `Resolver::with_wrap`.
+Every strategy is deterministic: the same raw input always produces the
+same UUID.
 
-| Strategy              | Behaviour                                           |
-| --------------------- | --------------------------------------------------- |
-| `UuidV5Namespaced`    | Default. UUID v5 under the crate's namespace.       |
-| `UuidV5With(ns)`      | UUID v5 under a caller-supplied namespace.          |
-| `UuidV3Nil`           | UUID v3 under the nil namespace (legacy Go compat). |
-| `Passthrough`         | Parse the raw value directly as a UUID.             |
+| Strategy              | Behaviour                                           | When to use                                                                                           |
+| --------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `UuidV5Namespaced`    | UUID v5 (SHA-1) under the crate's private namespace | **Default.** Best collision resistance; prevents two tools sharing a raw source from colliding.       |
+| `UuidV5With(ns)`      | UUID v5 under a caller-supplied namespace           | You want v5 but need the result to sit in a namespace another system in your stack already uses.      |
+| `UuidV3Nil`           | UUID v3 (MD5) under the nil namespace               | Wire-compat with the legacy Go derivation `uuid.NewMD5(uuid.Nil, raw)`. Interop only.                 |
+| `Passthrough`         | Parse the raw value directly as a UUID              | The source already yields a UUID and you want *that exact UUID* unchanged (e.g. match another agent). |
+
+Passthrough returns `Error::Malformed` when the raw value is not a
+parseable UUID, so avoid pairing it with sources that emit arbitrary
+strings (e.g. an `EnvOverride` seeded with `HOST_IDENTITY=my-server`).
+RFC 9562 recommends v5 over v3 for new work; prefer `UuidV5Namespaced`
+unless you have a concrete interop reason not to.
 
 ## Features
 

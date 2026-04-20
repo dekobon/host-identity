@@ -120,8 +120,37 @@ struct ResolveArgs {
     #[arg(long, value_enum, default_value_t = Format::Plain)]
     format: Format,
 
-    /// UUID wrap strategy.
-    #[arg(long, value_enum, default_value_t = WrapArg::V5)]
+    /// How the raw identifier is turned into a UUID.
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = WrapArg::V5,
+        long_help = "\
+How the raw identifier returned by the winning source is turned into a UUID.
+
+  v5           UUID v5 (SHA-1) under this crate's private namespace (default).
+               Deterministic: the same raw input always produces the same
+               UUID. Rehashes the raw value even when the source already
+               yields a UUID (DMI product_uuid, macOS IOPlatformUUID,
+               Windows MachineGuid, SMBIOS), so two tools that share a raw
+               source cannot emit colliding IDs unless they also share this
+               crate's namespace.
+
+  v3           UUID v3 (MD5) under the nil namespace. Use ONLY for interop
+               with existing pipelines that already produced IDs this way —
+               notably the legacy Go derivation `uuid.NewMD5(uuid.Nil, raw)`.
+               Prefer v5 for new deployments; RFC 9562 recommends v5 over v3.
+
+  passthrough  Parse the raw value directly as a UUID, with no hashing.
+               Use when the source already yields a UUID string and you
+               want that exact UUID to survive unchanged — e.g. to match
+               an ID another tool on the same host already emits. Fails
+               with an error when the raw value is not a parseable UUID
+               (machine-id, container IDs, Kubernetes pod UIDs all
+               qualify; arbitrary strings from HOST_IDENTITY do not).
+
+Pick v5 unless you have a concrete interop requirement.",
+    )]
     wrap: WrapArg,
 
     /// Comma-separated source identifiers to build a custom chain
