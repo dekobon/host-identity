@@ -166,10 +166,12 @@ jobs:
           set -eu
           PRERELEASE=false
           if [[ "$TAG" == *-* ]]; then PRERELEASE=true; fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
-          echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "prerelease=$PRERELEASE"
+            echo "ref=$TAG"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
