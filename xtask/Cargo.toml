@@ -12,7 +12,7 @@ publish = false
 # to `Command::name` without a `Box::leak` to forge a `'static` string.
 clap = { version = "4", features = ["derive", "string"] }
 clap_mangen = "0.2"
-host-identity-cli = { version = "1.0", path = "../crates/host-identity-cli", default-features = false, features = ["container", "network"] }
+host-identity-cli = { version = "1.1", path = "../crates/host-identity-cli", default-features = false, features = ["container", "network"] }
 
 [lints]
 workspace = true

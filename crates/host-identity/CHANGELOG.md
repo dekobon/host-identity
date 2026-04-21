@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-21
+
 ### Fixed
 
 - `host-identity-cli`: audit's plain and summary renderers now
