@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- CI: bump `softprops/action-gh-release` in the `publish` job from
+  `v2.3.2` to `v3.0.0`, migrating the action runtime from Node.js 20
+  to Node.js 24 ahead of the 2026-09-16 Node 20 removal from
+  GitHub-hosted runners. `v3.0.0` is a runtime-only bump with no
+  interface changes. See
+  [#26](https://github.com/dekobon/host-identity/issues/26).
+
 ## [1.1.0] - 2026-04-21
 
 ### Fixed
