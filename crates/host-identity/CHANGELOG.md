@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-04-26
+
+### Security
+
+- `host-identity-cli`: bump `rustls-webpki` to `0.103.13`, patching
+  `GHSA-82j2-j2ch-gfr8` (reachable panic on malformed CRL `BIT
+  STRING`) and a related URI name-constraint validation bug. Reaches
+  the CLI transitively via `rustls -> ureq`; CRL checking is opt-in,
+  so default usage was unaffected. See
+  [#27](https://github.com/dekobon/host-identity/issues/27).
+
 ### Changed
 
 - CI: bump `softprops/action-gh-release` in the `publish` job from
@@ -14,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   GitHub-hosted runners. `v3.0.0` is a runtime-only bump with no
   interface changes. See
   [#26](https://github.com/dekobon/host-identity/issues/26).
+- CI: bump the `actions` group — `actions/checkout` to `v6`,
+  `docker/setup-qemu-action` to `v4`, `vmactions/freebsd-vm` to
+  `v1.4.5`, and `dtolnay/rust-toolchain` to its latest pinned SHA.
+- CI: collapse the release-workflow `preflight.classify` step's four
+  `GITHUB_OUTPUT` writes into a single redirect block (shellcheck
+  `SC2129`). Pure cleanup — identical runtime behavior.
 
 ## [1.1.0] - 2026-04-21
 
