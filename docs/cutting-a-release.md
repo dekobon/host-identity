@@ -67,7 +67,7 @@ Configure these under **Settings → Secrets and variables → Actions**:
 | `MINISIGN_PASSWORD`      | Password for that key                                              |
 | `ALPINE_ABUILD_KEY_PRIV` | abuild RSA private key (Alpine `.apk` signing)                     |
 | `ALPINE_ABUILD_KEY_PUB`  | Matching public key                                                |
-| `HOMEBREW_TAP_TOKEN`     | Fine-grained PAT with write access to `dekobon/homebrew-host-identity` |
+| `HOMEBREW_TAP_TOKEN`     | Fine-grained PAT with write access to `dekobon/homebrew-tap`       |
 | `SCOOP_BUCKET_TOKEN`     | Fine-grained PAT with write access to `dekobon/scoop-bucket`       |
 
 crates.io authentication no longer uses a repository secret. The
@@ -108,7 +108,7 @@ Keep `minisign.key` out of the repo.
 
 Releases (for stable versions) push to:
 
-- `dekobon/homebrew-host-identity` — Homebrew tap
+- `dekobon/homebrew-tap` — shared Homebrew tap (multi-formula)
 - `dekobon/scoop-bucket` — Scoop bucket
 - `crates.io` — `host-identity` (library) and `host-identity-cli`
   (binary) via `cargo publish`
@@ -440,7 +440,7 @@ gh attestation verify "host-identity-${VERSION}-x86_64-unknown-linux-musl.tar.gz
 
 Check that the downstream package managers updated:
 
-- Homebrew tap: new commit on `dekobon/homebrew-host-identity`
+- Homebrew tap: new commit on `dekobon/homebrew-tap`
   bumping `Formula/host-identity.rb`.
 - Scoop bucket: new commit on `dekobon/scoop-bucket` bumping
   `bucket/host-identity.json`.

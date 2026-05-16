@@ -17,5 +17,5 @@ workflow substitutes at build time:
 | `alpine/APKBUILD.in`              | `abuild -r` in Stage 2             |
 | `freebsd/+MANIFEST.in`            | `pkg create -M` in Stage 2         |
 | `freebsd/port/`                   | Published as-is for ports-tree PRs |
-| `homebrew/host-identity.rb.tmpl`         | Pushed to `homebrew-host-identity` |
-| `scoop/host-identity.json.in`            | Pushed to `scoop-bucket`           |
+| `homebrew/host-identity.rb.tmpl`         | Pushed to `dekobon/homebrew-tap` (shared, multi-formula) |
+| `scoop/host-identity.json.in`            | Pushed to `dekobon/scoop-bucket` (shared, multi-manifest) |

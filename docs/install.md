@@ -33,7 +33,7 @@ and a Homebrew/Scoop manifest to
 | RHEL / Rocky / Fedora / Amazon Linux | `dnf install ./host-identity-<ver>-1.x86_64.rpm` (or `aarch64`)                                         |
 | Alpine                             | `apk add --allow-untrusted ./host-identity-<ver>-r0.apk`                                                  |
 | FreeBSD (amd64)                    | `pkg install ./host-identity-<ver>.pkg`                                                                   |
-| macOS (Apple Silicon)              | `brew install dekobon/host-identity/host-identity`                                                        |
+| macOS (Apple Silicon)              | `brew install dekobon/tap/host-identity`                                                                  |
 | macOS (Intel)                      | `cargo install --locked host-identity-cli` (or the Apple-silicon build under Rosetta 2)                   |
 | Windows (x86_64 / arm64)           | `scoop bucket add dekobon https://github.com/dekobon/scoop-bucket && scoop install host-identity`         |
 | Portable (Linux / macOS / Windows) | Download `host-identity-<ver>-<target>.tar.gz` / `.zip` and extract                                       |
@@ -121,16 +121,16 @@ ports tree (see [`packaging/freebsd/port/`](../packaging/freebsd/port)).
 
 ## macOS (Homebrew)
 
-The Homebrew formula lives in an external tap repo:
-<https://github.com/dekobon/homebrew-host-identity>
+The Homebrew formula lives in an external shared tap repo:
+<https://github.com/dekobon/homebrew-tap>
 
 Homebrew refers to taps with a `<user>/<repo>` shorthand and auto-prepends
 `homebrew-` to the repo segment when resolving the GitHub URL. So:
 
-| Shorthand                            | Resolves to                                           |
-| ------------------------------------ | ----------------------------------------------------- |
-| `dekobon/host-identity`              | `github.com/dekobon/homebrew-host-identity`           |
-| `dekobon/host-identity/host-identity` | the `host-identity` formula inside that tap           |
+| Shorthand                  | Resolves to                                 |
+| -------------------------- | ------------------------------------------- |
+| `dekobon/tap`              | `github.com/dekobon/homebrew-tap`           |
+| `dekobon/tap/host-identity` | the `host-identity` formula inside that tap |
 
 ### One-shot install (recommended)
 
@@ -138,7 +138,7 @@ The three-slash form auto-taps the repo and installs the formula in one
 step:
 
 ```bash
-brew install dekobon/host-identity/host-identity
+brew install dekobon/tap/host-identity
 ```
 
 ### Tap first, then install
@@ -148,19 +148,32 @@ URL — useful if you want the exact repo written into your Homebrew
 state, or if you're installing from a fork or mirror:
 
 ```bash
-brew tap dekobon/host-identity https://github.com/dekobon/homebrew-host-identity
+brew tap dekobon/tap https://github.com/dekobon/homebrew-tap
 brew install host-identity
 ```
 
-Without the explicit URL (`brew tap dekobon/host-identity`), Homebrew
-infers the same GitHub URL via the `homebrew-` convention above.
+Without the explicit URL (`brew tap dekobon/tap`), Homebrew infers the
+same GitHub URL via the `homebrew-` convention above.
 
 ### Upgrade and uninstall
 
 ```bash
 brew upgrade host-identity
 brew uninstall host-identity
-brew untap dekobon/host-identity   # optional — drops the tap itself
+brew untap dekobon/tap   # optional — drops the tap itself
+```
+
+### Migrating from the old tap
+
+Earlier releases used a dedicated tap repo named
+`dekobon/homebrew-host-identity`, exposed as `dekobon/host-identity`.
+That repo was renamed to `dekobon/homebrew-tap` so it can host multiple
+formulae. GitHub keeps a redirect, so existing taps continue to receive
+updates, but the cleanest migration is:
+
+```bash
+brew untap dekobon/host-identity
+brew tap dekobon/tap
 ```
 
 ### Apple Silicon only

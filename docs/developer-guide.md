@@ -533,7 +533,7 @@ The workflow expects these repository secrets:
 | `MINISIGN_PASSWORD`         | `sign-attest` job            | password for the minisign key                   |
 | `ALPINE_ABUILD_KEY_PRIV`    | `package-apk` jobs           | abuild RSA private key                          |
 | `ALPINE_ABUILD_KEY_PUB`     | `package-apk` jobs           | matching public key                             |
-| `HOMEBREW_TAP_TOKEN`        | `publish` job                | fine-grained PAT scoped to `homebrew-host-identity` |
+| `HOMEBREW_TAP_TOKEN`        | `publish` job                | fine-grained PAT scoped to `dekobon/homebrew-tap`   |
 | `SCOOP_BUCKET_TOKEN`        | `publish` job                | fine-grained PAT scoped to `scoop-bucket`       |
 
 Rotate the minisign keypair by generating a new one

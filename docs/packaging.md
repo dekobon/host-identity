@@ -136,9 +136,10 @@ ports tree.
 ### Homebrew
 
 [`packaging/homebrew/host-identity.rb.tmpl`](../packaging/homebrew) is pushed
-to the external `homebrew-host-identity` tap with the per-target
-tarball SHA-256s substituted in. The formula installs both `amd64`
-and `arm64` bottles.
+to the shared `dekobon/homebrew-tap` repo (under `Formula/`) with the
+per-target tarball SHA-256s substituted in. The formula installs both
+`amd64` and `arm64` bottles. The tap is shared across `dekobon`'s
+projects, so the workflow only touches `Formula/host-identity.rb`.
 
 ### Scoop
 
