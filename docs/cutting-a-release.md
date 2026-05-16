@@ -114,6 +114,11 @@ Releases (for stable versions) push to:
   (binary) via `cargo publish`
 
 Both tap and bucket repos must exist and accept the configured PAT.
+The tap-push and bucket-push steps are gated on
+`prerelease != 'true'`, so pre-release tags do not exercise them. After
+renaming either repo (or rotating its PAT), the first stable release
+is the first end-to-end check; consider rehearsing with a throwaway
+stable tag in a fork if you want earlier confidence.
 
 ### crates.io ownership
 

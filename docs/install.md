@@ -6,7 +6,7 @@ library, add `host-identity` to your `Cargo.toml` — see the top-level
 see [`packaging.md`](packaging.md).
 
 Every release tag (`v*`) publishes prebuilt binaries, native packages,
-and a Homebrew/Scoop manifest to
+and updated Homebrew and Scoop manifests, alongside the artefacts on
 [GitHub Releases](https://github.com/dekobon/host-identity/releases).
 
 ## Contents
@@ -127,9 +127,9 @@ The Homebrew formula lives in an external shared tap repo:
 Homebrew refers to taps with a `<user>/<repo>` shorthand and auto-prepends
 `homebrew-` to the repo segment when resolving the GitHub URL. So:
 
-| Shorthand                  | Resolves to                                 |
-| -------------------------- | ------------------------------------------- |
-| `dekobon/tap`              | `github.com/dekobon/homebrew-tap`           |
+| Shorthand                   | Resolves to                                 |
+| --------------------------- | ------------------------------------------- |
+| `dekobon/tap`               | `github.com/dekobon/homebrew-tap`           |
 | `dekobon/tap/host-identity` | the `host-identity` formula inside that tap |
 
 ### One-shot install (recommended)
@@ -172,7 +172,7 @@ formulae. GitHub keeps a redirect, so existing taps continue to receive
 updates, but the cleanest migration is:
 
 ```bash
-brew untap dekobon/host-identity
+brew untap dekobon/host-identity   # safe to skip if you never had the old tap
 brew tap dekobon/tap
 ```
 

@@ -12,10 +12,10 @@ workflow substitutes at build time:
 | `@@SHA256_*@@`         | SHA-256 of the matching release tarball   |
 | `@@SHA512@@`           | SHA-512 (Alpine)                          |
 
-| File                              | Consumer                           |
-| --------------------------------- | ---------------------------------- |
-| `alpine/APKBUILD.in`              | `abuild -r` in Stage 2             |
-| `freebsd/+MANIFEST.in`            | `pkg create -M` in Stage 2         |
-| `freebsd/port/`                   | Published as-is for ports-tree PRs |
-| `homebrew/host-identity.rb.tmpl`         | Pushed to `dekobon/homebrew-tap` (shared, multi-formula) |
-| `scoop/host-identity.json.in`            | Pushed to `dekobon/scoop-bucket` (shared, multi-manifest) |
+| File                             | Consumer                                                  |
+| -------------------------------- | --------------------------------------------------------- |
+| `alpine/APKBUILD.in`             | `abuild -r` in Stage 2                                    |
+| `freebsd/+MANIFEST.in`           | `pkg create -M` in Stage 2                                |
+| `freebsd/port/`                  | Published as-is for ports-tree PRs                        |
+| `homebrew/host-identity.rb.tmpl` | Pushed to `dekobon/homebrew-tap` (shared, multi-formula)  |
+| `scoop/host-identity.json.in`    | Pushed to `dekobon/scoop-bucket` (shared, multi-manifest) |
