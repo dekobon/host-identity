@@ -60,7 +60,10 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-      - run: cargo doc --no-deps --all-features --workspace
+      # `--lib` skips the CLI's bin target, whose name `host-identity`
+      # collides with the lib crate `host_identity` in the doc output
+      # directory (both map to `host_identity/`).
+      - run: cargo doc --no-deps --all-features --workspace --lib
 
   test:
     name: test (${{ matrix.os }})
