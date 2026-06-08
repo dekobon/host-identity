@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-06-08
+
+### Changed
+
+- deps: bump `serde_json` to `1.0.150`, `http` to `1.4.1`, `uuid` to
+  `1.23.2`, `log` to `0.4.32`, and the `serial_test` dev-dependency to
+  `3.5.0`. Lockfile-only refreshes with no source changes.
+- CI: bump `github/codeql-action` to `4.36.2` and the `actions` group
+  (workflow runner actions) across `ci.yml`, `codeql.yml`, and
+  `release.yml`.
+- docs: retarget the Homebrew tap at `dekobon/homebrew-tap` and tidy
+  the packaging/install docs to match the rename.
+
 ## [1.1.1] - 2026-04-26
 
 ### Security
