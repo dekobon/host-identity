@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-07-31
+
+### Changed
+
+- deps: bump `clap` to `4.6.2`, `uuid` to `1.24.0`, `zeroize` to
+  `1.9.0`, `http` to `1.4.2`, `log` to `0.4.33`, `anyhow` to `1.0.104`,
+  `serde` to `1.0.229`, and `thiserror` to `2.0.19`. Lockfile-only
+  refreshes with no source changes.
+- CI: bump the `actions` group across `ci.yml`, `codeql.yml`, and
+  `release.yml` — `actions/checkout` to `v7`,
+  `EmbarkStudios/cargo-deny-action` to `2.1.1`,
+  `github/codeql-action` to `4.37.1`, `docker/setup-qemu-action` to
+  `4.2.0`, `vmactions/freebsd-vm` to `1.5.2`,
+  `actions/attest-build-provenance` to `4.1.1`,
+  `softprops/action-gh-release` to `3.0.2`,
+  `rust-lang/crates-io-auth-action` to `1.0.5`, and
+  `dtolnay/rust-toolchain` to its latest pinned SHA.
+
 ## [1.1.2] - 2026-06-08
 
 ### Changed
