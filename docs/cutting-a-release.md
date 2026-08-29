@@ -373,11 +373,18 @@ workflow**, then select the tag in the ref dropdown, or:
 gh workflow run release.yml --ref v0.0.0-test1
 ```
 
-This requires no new commits or tags and is the cleanest way to retry
-a stage. There is deliberately no `tag` input: a dispatch input is
+For a tag that already carries the current workflow this needs no new
+commits or tags, and is the cleanest way to retry a stage. There is
+deliberately no `tag` input: a dispatch input is
 untrusted data feeding a privileged checkout, and taking the tag from
 the ref keeps the run's Actions cache scoped to the tag instead of to
 `main`.
+
+Note that `workflow_dispatch` reads the workflow definition — inputs
+included — from the ref you dispatch *on*, not from `main`. Tags cut
+before the `tag` input was removed still carry the old definition, so
+dispatching on one fails with `Required input 'tag' not provided`.
+Rehearse against a tag created after that change.
 
 **Alternative:** create a throwaway pre-release tag. This path
 requires a matching changelog section on the tagged commit — the
@@ -466,8 +473,9 @@ or smoke error, so a broken release almost never reaches users.
 
 If publish itself partially succeeds (e.g. GitHub Release created but
 tap push failed), the fix is usually to re-run the workflow against
-the same tag via **Actions → Run workflow**. The pipeline is
-idempotent (see "Rehearsing" above).
+the same tag via **Actions → Run workflow**, selecting that tag in
+the ref dropdown — dispatching from a branch is rejected. The
+pipeline is idempotent (see "Rehearsing" above).
 
 If you need to pull a release entirely:
 
