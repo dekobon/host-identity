@@ -982,8 +982,7 @@ mod tests {
         // but `/proc/self/status` is trivial. See
         // [`effective_uid_from_status`] for the parsing contract.
         std::fs::read_to_string("/proc/self/status")
-            .ok()
-            .is_some_and(|s| effective_uid_from_status(&s) == Some("0"))
+            .is_ok_and(|s| effective_uid_from_status(&s) == Some("0"))
     }
 
     /// Extract the effective UID from the `Uid:` line of
