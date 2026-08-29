@@ -3,15 +3,19 @@ name: Release
 # Triggered by `v*` tags. `workflow_dispatch` is available for rehearsal
 # against an existing tag; the pre-release gate keeps tap/bucket
 # updates from leaking during rehearsal.
+#
+# Dispatch runs must select the *tag ref* itself (Run workflow -> pick the
+# tag, or `gh workflow run release.yml --ref v1.2.3`) rather than naming a
+# tag in an input. A dispatch input is untrusted data: it fed a privileged
+# checkout whose build steps execute `build.rs` and proc macros from the
+# named ref, while a run dispatched from `main` holds write access to the
+# default-branch Actions cache scope that ci.yml restores. Taking the tag
+# from `github.ref_name` removes the untrusted input and scopes the cache to
+# the tag. See CodeQL actions/cache-poisoning/poisonable-step.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing tag to release (e.g. v0.1.0 or v0.0.0-test1)"
-        required: true
-        type: string
 
 # Never cancel an in-flight release — external publishes must be atomic.
 concurrency:
@@ -57,16 +61,18 @@ jobs:
       - name: Resolve tag
         id: tag
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_TAG: ${{ inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           set -eu
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            TAG="$INPUT_TAG"
-          else
-            TAG="$REF_NAME"
+          # Both triggers resolve the tag from the ref the run was started
+          # on, so there is no dispatch input to smuggle an arbitrary ref
+          # into the privileged checkouts below.
+          if [[ "$REF_TYPE" != "tag" ]]; then
+            echo "::error::Release must run on a tag ref. Dispatch it from the tag itself (e.g. 'gh workflow run release.yml --ref v1.2.3'), not from a branch."
+            exit 1
           fi
+          TAG="$REF_NAME"
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
             echo "::error::Tag '$TAG' is not a valid semver release tag"
             exit 1
@@ -84,8 +90,10 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-      # Always check out the tag ref, not the event SHA. Critical for
-      # workflow_dispatch where github.sha points at the branch HEAD.
+      # Check out the resolved tag by name rather than relying on
+      # github.sha. Both triggers now run on the tag ref, so the two agree,
+      # but naming the tag keeps this step correct independently of how the
+      # run was started — and matches the `ref:` every downstream job uses.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

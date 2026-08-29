@@ -80,9 +80,10 @@ The files are committed so downstream packagers do not pull in
 ## Release pipeline overview
 
 Release automation lives in [`.github/workflows/release.yml`](../.github/workflows/release.yml)
-and is triggered by pushing a `v*` tag. `workflow_dispatch` re-runs
-an existing tag for rehearsal; the pre-release gate prevents tap /
-bucket updates from leaking during rehearsal.
+and is triggered by pushing a `v*` tag. `workflow_dispatch`, dispatched
+from an existing tag ref, re-runs that tag for rehearsal; the
+pre-release gate prevents tap / bucket updates from leaking during
+rehearsal.
 
 Stages, in order:
 

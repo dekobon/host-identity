@@ -1,0 +1,14 @@
+# `rust/cleartext-logging` flags every `println!`/`assert!` that formats a
+# HostId. Producing that identifier for callers to print, log, or display is
+# this crate's entire purpose, so the query has no signal in example and test
+# code — where the values are synthetic fixtures besides. Excluding these
+# trees stops the same findings recurring under fresh alert IDs every time a
+# line number shifts (see the dismissal history on alerts #1-#11, re-raised
+# verbatim as #17-#27).
+#
+# `paths-ignore` is honoured for Rust only because the CodeQL matrix analyses
+# it with `build-mode: none`; it would be silently ignored for a built
+# compiled language.
+paths-ignore:
+  - crates/*/tests
+  - crates/*/examples

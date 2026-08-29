@@ -365,10 +365,19 @@ pushes.
 
 Use this to exercise the pipeline without creating a real version.
 
-**Preferred:** re-run the workflow against an existing tag via
-**Actions → Release → Run workflow**, typing the tag name in the
-`tag` input. This requires no new commits or tags and is the cleanest
-way to retry a stage.
+**Preferred:** re-run the workflow against an existing tag by
+dispatching it *from that tag ref* — **Actions → Release → Run
+workflow**, then select the tag in the ref dropdown, or:
+
+```bash
+gh workflow run release.yml --ref v0.0.0-test1
+```
+
+This requires no new commits or tags and is the cleanest way to retry
+a stage. There is deliberately no `tag` input: a dispatch input is
+untrusted data feeding a privileged checkout, and taking the tag from
+the ref keeps the run's Actions cache scoped to the tag instead of to
+`main`.
 
 **Alternative:** create a throwaway pre-release tag. This path
 requires a matching changelog section on the tagged commit — the
