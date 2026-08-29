@@ -516,12 +516,14 @@ still publishes signed artefacts to the GitHub Release.
 
 ### Rehearsing a release
 
-Use the `workflow_dispatch` trigger on the `Release` workflow with
-a test tag like `v0.0.0-test1` (the pre-release gate prevents the
-rehearsal from touching external repositories). Re-running the
-workflow on the same tag is idempotent — `softprops/action-gh-release`
-overwrites existing assets and tap/bucket pushes are no-ops when
-the rendered files are unchanged.
+Dispatch the `Release` workflow *from* a test tag ref like
+`v0.0.0-test1` — `gh workflow run release.yml --ref v0.0.0-test1`, or
+select the tag in the **Run workflow** dropdown (the pre-release gate
+prevents the rehearsal from touching external repositories). The
+workflow takes no `tag` input and fails fast if dispatched from a
+branch. Re-running on the same tag is idempotent —
+`softprops/action-gh-release` overwrites existing assets and tap/bucket
+pushes are no-ops when the rendered files are unchanged.
 
 ### Secrets
 
