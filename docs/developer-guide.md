@@ -521,7 +521,14 @@ Dispatch the `Release` workflow *from* a test tag ref like
 select the tag in the **Run workflow** dropdown (the pre-release gate
 prevents the rehearsal from touching external repositories). The
 workflow takes no `tag` input and fails fast if dispatched from a
-branch. Re-running on the same tag is idempotent —
+branch.
+
+`workflow_dispatch` reads the workflow definition — inputs included —
+from the ref you dispatch on, so tags cut before the `tag` input was
+removed still declare it and reject the dispatch with `Required input
+'tag' not provided`. Rehearse against a tag created after that change.
+
+Re-running on the same tag is idempotent —
 `softprops/action-gh-release` overwrites existing assets and tap/bucket
 pushes are no-ops when the rendered files are unchanged.
 
